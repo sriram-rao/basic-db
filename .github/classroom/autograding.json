@@ -1,0 +1,154 @@
+{
+  "tests": [
+    {
+      "name": "PFM_File_Test.create_file",
+      "setup": "mkdir -p cmake-build-debug; cd cmake-build-debug; cmake ../ && cmake --build . -j 9",
+      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.create_file",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_File_Test.create_existing_file",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.create_existing_file",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_File_Test.destroy_file",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.destroy_file",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_File_Test.destroy_nonexistent_file",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.destroy_nonexistent_file",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_File_Test.open_and_close_file",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.open_and_close_file",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_Page_Test.get_page_numbers",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.get_page_numbers",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_Page_Test.read_nonexistent_page",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.read_nonexistent_page",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_Page_Test.append_and_read_pages",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.append_and_read_pages",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_Page_Test.write_nonexistent_page",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.write_nonexistent_page",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_Page_Test.write_and_read_pages",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.write_and_read_pages",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "PFM_Page_Test.append_and_write_and_read_pages",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.append_and_write_and_read_pages",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RBFM_Test.insert_and_read_a_record",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R RBFM_Test.insert_and_read_a_record",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RBFM_Test.insert_and_read_a_record_with_null",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R RBFM_Test.insert_and_read_a_record",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RBFM_Test.insert_and_read_multiple_records",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R RBFM_Test.insert_and_read_multiple_records",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    },
+    {
+      "name": "RBFM_Test.insert_and_read_massive_records",
+      "setup": "",
+      "run": "cd cmake-build-debug && ctest . -R RBFM_Test.insert_and_read_massive_records",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    }
+  ]
+}
