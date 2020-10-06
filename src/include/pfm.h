@@ -26,7 +26,7 @@ namespace PeterDB {
         ~PagedFileManager();                                                // Prevent unwanted destruction
         PagedFileManager(const PagedFileManager &);                         // Prevent construction by copying
         PagedFileManager &operator=(const PagedFileManager &);              // Prevent assignment
-        
+
     };
 
     class FileHandle {
@@ -49,8 +49,8 @@ namespace PeterDB {
                                 unsigned &appendPageCount);                 // Put current counter values into variables
         RC openFile();
         RC closeFile();
-        bool checkIfOpen();
-        static bool fileExists(const std::string &fileName);
+        bool isOpen() const;
+        static bool exists(const std::string &fileName);
         FILE* file;
 
     private:
