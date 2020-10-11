@@ -39,7 +39,6 @@ namespace PeterDB {
         FileHandle();                                                       // Default constructor
         ~FileHandle();                                                      // Destructor
         FileHandle(FILE *file);
-        FileHandle& operator= (const FileHandle &);
 
         RC readPage(PageNum pageNum, void *data);                           // Get a specific page
         RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
@@ -51,6 +50,7 @@ namespace PeterDB {
         RC closeFile();
         bool isOpen() const;
         static bool exists(const std::string &fileName);
+        static RC init(FILE* file);
         FILE* file;
 
     private:
