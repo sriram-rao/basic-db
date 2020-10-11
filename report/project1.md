@@ -41,8 +41,6 @@ Since we know the number of bytes per metadata field (offset or record size) and
  On update/delete of records, we plan on shifting the records to uilize the newly freed space.
  We will update the documentation with our plan for slot directory on deletion of a record.
 
-- Explain your slot directory design if applicable.
-
 The slot directory is similar to the design described in the lecture.
 * We store a vector with the following information: memory offset to the record inside the current page and record length.
 * We have the following fixed length information: number of records and amount of free space remaining.
@@ -53,9 +51,7 @@ The slot directory is similar to the design described in the lecture.
 
 ### 4. Page Management
 - Show your algorithm of finding next available-space page when inserting a record.
-
-<TODO>
-
+TODO
 
 - How many hidden pages are utilized in your design?
 
@@ -74,8 +70,6 @@ Currently, we store the three unsigned int counters read, write and append page 
 We have started with using cstdio for file handling (i.e. fopen, fread, etc). This is easily changed in the paged file manager if we decide to migrate.
 
 ### 6. Member contribution (for team of two)
-- Explain how you distribute the workload in team.
-
 We discussed the design for PFM, Record, Slot Directory and Page at first.
 We divided the code to be written. For the first project, Sriram started with the PagedFileManager and FileHandle. Subhamoy started with the models for Record and Slot Directory. The implementation for using these in Record Manager is split and in a sense, it is a combined effort.
 
