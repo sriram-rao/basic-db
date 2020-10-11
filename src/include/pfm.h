@@ -38,6 +38,8 @@ namespace PeterDB {
 
         FileHandle();                                                       // Default constructor
         ~FileHandle();                                                      // Destructor
+        FileHandle(FILE *file);
+        FileHandle& operator= (const FileHandle &);
 
         RC readPage(PageNum pageNum, void *data);                           // Get a specific page
         RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
@@ -45,6 +47,14 @@ namespace PeterDB {
         unsigned getNumberOfPages();                                        // Get the number of pages in the file
         RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount,
                                 unsigned &appendPageCount);                 // Put current counter values into variables
+        RC openFile();
+        RC closeFile();
+        bool isOpen() const;
+        static bool exists(const std::string &fileName);
+        FILE* file;
+
+    private:
+        RC persistCounters();
     };
 
 } // namespace PeterDB
