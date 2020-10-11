@@ -1,6 +1,5 @@
 #include "src/include/pfm.h"
 #include <cstdio>
-#include <fstream>
 
 namespace PeterDB {
     PagedFileManager &PagedFileManager::instance() {
@@ -19,7 +18,8 @@ namespace PeterDB {
     RC PagedFileManager::createFile(const std::string &fileName) {
         if (FileHandle::exists(fileName)) return -1;
         FILE* newFile;
-        newFile = fopen(fileName.c_str(), "w");
+        newFile = fopen(fileName.c_str(), "w+b");
+        FileHandle::init(newFile);
         fclose(newFile);
         return 0;
     }
@@ -32,15 +32,20 @@ namespace PeterDB {
 
     RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
         if (fileHandle.isOpen()) return -1;
-        FILE* f = fopen(fileName.c_str(), "w+b");
-        fileHandle = * (new FileHandle(f));
-        fileHandle.openFile();
+        bool newFile = !FileHandle::exists(fileName);
+        FILE* f = fopen(fileName.c_str(), "r+b");
+        fileHandle = FileHandle(f);
+        if (newFile)
+            FileHandle::init(f);
+        else
+            fileHandle.openFile();
         return 0;
     }
 
     RC PagedFileManager::closeFile(FileHandle &fileHandle) {
         fileHandle.closeFile();
         fclose(fileHandle.file);
+        return 0;
     }
 
     FileHandle::FileHandle() {
@@ -50,50 +55,41 @@ namespace PeterDB {
         file = NULL;
     }
 
-    FileHandle::FileHandle(FILE* f): file(f) {
+    FileHandle::FileHandle(FILE* f) {
+        readPageCounter = 0;
+        writePageCounter = 0;
+        appendPageCounter = 0;
+        file = f;
     }
 
     FileHandle::~FileHandle() {
-        persistCounters();
-    }
-
-
-    FileHandle &FileHandle::operator=(const FileHandle &that) {
-        this->persistCounters();
-        this->readPageCounter = that.readPageCounter;
-        this->writePageCounter = that.writePageCounter;
-        this->appendPageCounter = that.appendPageCounter;
-        this->file = that.file;
-        return *this;
     }
 
     RC FileHandle::readPage(PageNum pageNum, void *data) {
-        if (getNumberOfPages() <= pageNum) return -1;
+        if (getNumberOfPages() < pageNum) return -1;
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
-        int readSize = fread(data, 1, PAGE_SIZE, file);
-        if (readSize != PAGE_SIZE) return -1;
-        readPageCounter++;
+        fread(data, PAGE_SIZE, 1, file);
+        this->readPageCounter = this->readPageCounter + 1;
         return 0;
     }
 
     RC FileHandle::writePage(PageNum pageNum, const void *data) {
-        if (getNumberOfPages() <= pageNum) return -1;
+        if (getNumberOfPages() < pageNum) return -1;
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
-        int writeSize = fwrite(data, 1, PAGE_SIZE, file);
-        if (writeSize != PAGE_SIZE) return -1;
-        writePageCounter++;
+        fwrite(data, PAGE_SIZE, 1, file);
+        this->writePageCounter = this->writePageCounter + 1;
         return 0;
     }
 
     RC FileHandle::appendPage(const void *data) {
         fseek(file, 0, SEEK_END);
-        fwrite(data, 1, PAGE_SIZE, file);
-        appendPageCounter++;
+        fwrite(data, PAGE_SIZE, 1, file);
+        this->appendPageCounter = this->appendPageCounter + 1;
         return 0;
     }
 
     unsigned FileHandle::getNumberOfPages() {
-        return appendPageCounter;
+        return this->appendPageCounter;
     }
 
     RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
@@ -104,10 +100,9 @@ namespace PeterDB {
     }
 
     RC FileHandle::openFile() {
-        // Load the counters
-        unsigned counters[3];
+        unsigned counters[3] = { 0, 0, 0 };
         fseek(file, 0, SEEK_SET);
-        fread((void*) counters, sizeof(unsigned), 3, file);
+        fread(counters, sizeof(unsigned), 3, file);
         this->readPageCounter = counters[0];
         this->writePageCounter = counters[1];
         this->appendPageCounter = counters[2];
@@ -123,14 +118,22 @@ namespace PeterDB {
         return file != NULL;
     }
 
+    RC FileHandle::init(FILE *file) {
+        fseek(file, 0, SEEK_SET);
+        unsigned counters[PAGE_SIZE / sizeof(unsigned)] = {0, 0, 0};
+        fwrite(counters, sizeof(unsigned), PAGE_SIZE / sizeof(unsigned), file);
+        return 0;
+    }
+
     bool FileHandle::exists(const std::string &fileName) {
         if(fopen(fileName.c_str(), "r")) return true;
         return false;
     }
 
     RC FileHandle::persistCounters(){
+        if (NULL == file) return 0;
         fseek(file, 0, SEEK_SET);
-        unsigned int counters[3] = { readPageCounter, writePageCounter, appendPageCounter };
+        unsigned counters[3] = { readPageCounter, writePageCounter, appendPageCounter };
         fwrite(counters, sizeof(unsigned), 3, file);
         return 0;
     }
