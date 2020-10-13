@@ -105,8 +105,11 @@ namespace PeterDBTesting {
         std::string::size_type val_end;
 
         while ((key_end = keyValuePairsStr.find(':', key_pos)) != std::string::npos) {
-            if ((val_pos = keyValuePairsStr.find_first_not_of(": ", key_end)) == std::string::npos)
+            if ((val_pos = keyValuePairsStr.find_first_not_of(": ", key_end)) == std::string::npos) {
+                // Handle the case of empty string
+                outMap.emplace(trim_copy(keyValuePairsStr.substr(key_pos, key_end - key_pos)), std::string());
                 break;
+            }
 
             val_end = keyValuePairsStr.find(',', val_pos);
             outMap.emplace(trim_copy(keyValuePairsStr.substr(key_pos, key_end - key_pos)),
@@ -179,9 +182,9 @@ namespace PeterDBTesting {
 
     static void setBit(char &src, bool value, unsigned offset) {
         if (value) {
-            src |= (unsigned) 1 << offset;
+            src |= 1u << offset;
         } else {
-            src &= ~((unsigned) 1 << offset);
+            src &= ~(1u << offset);
         }
     }
 
@@ -192,14 +195,14 @@ namespace PeterDBTesting {
         setBit(*((char *) src + bytes), isNull, pos);
     }
 
-    // This code is required for testing to measure the memory usage of your code.
-    // If you can't compile the codebase because of this function, you can safely comment this function or remove it.
-    void memProfile() {
-        int who = RUSAGE_SELF;
-        struct rusage usage{};
-        getrusage(who, &usage);
-        std::cout << usage.ru_maxrss << "KB" << std::endl;
-    }
+//    // This code is required for testing to measure the memory usage of your code.
+//    // If you can't compile the codebase because of this function, you can safely comment this function or remove it.
+//    void memProfile() {
+//        int who = RUSAGE_SELF;
+//        struct rusage usage{};
+//        getrusage(who, &usage);
+//        std::cout << usage.ru_maxrss << "KB" << std::endl;
+//    }
 
 } // namespace PeterDBTesting
 

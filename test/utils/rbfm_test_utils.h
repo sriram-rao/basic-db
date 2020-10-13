@@ -3,6 +3,9 @@
 
 #include <cmath>
 #include <fstream>
+#include <chrono>
+#include <numeric>
+#include <unordered_set>
 
 #include "src/include/rbfm.h"
 #include "gtest/gtest.h"
@@ -329,6 +332,29 @@ namespace PeterDBTesting {
             free(suffix);
         }
 
+        static int
+        checkTimeComplexity(const std::function<void(int)> &func,
+                            const std::function<unsigned(int)> &expectedTimeComplexity,
+                            const std::function<unsigned(int)> &metricFunc, int numRounds) {
+            unsigned lastMetric = 0;
+            std::unordered_set<unsigned> constants;
+            // Run target function numRounds times
+            for (unsigned i = 0; i < numRounds; ++i) {
+                // Run the target function
+                func(i);
+                // Get metric for this run
+                unsigned metric = metricFunc(i);
+                // Get related N for this run
+                unsigned n = expectedTimeComplexity(i);
+                // Calculate delta/(expected N) to get the constant
+                constants.insert((metric - lastMetric) / n);
+                // Save the metric for next run
+                lastMetric = metric;
+            }
+            // return number of distinct constants
+            return constants.size();
+        }
+
         // Record Descriptor for TweetMessage
         static void createRecordDescriptorForTweetMessage(std::vector<PeterDB::Attribute> &recordDescriptor) {
 
@@ -365,9 +391,9 @@ namespace PeterDBTesting {
                                                  const int referred_topicsLength, const std::string &referred_topics,
                                                  const int message_textLength, const std::string &message_text,
                                                  const int userid, const int hash_tagsLength,
-                                                 const std::string &hash_tags, void *buffer, unsigned *recordSize) {
+                                                 const std::string &hash_tags, void *buffer, size_t &recordSize) {
 
-            unsigned offset = 0;
+            size_t offset = 0;
 
             // Null-indicators
             bool nullBit;
@@ -434,7 +460,7 @@ namespace PeterDBTesting {
                 offset += hash_tagsLength;
             }
 
-            *recordSize = offset;
+            recordSize = offset;
 
         }
 
@@ -568,9 +594,9 @@ namespace PeterDBTesting {
         }
 
         static void
-        prepareLargeRecordForTwitterUser(int fieldCount, unsigned char *nullFieldsIndicator, const int index,
-                                         void *buffer, int *size) {
-            int offset = 0;
+        prepareLargeRecordForTwitterUser(int fieldCount, unsigned char *nullFieldsIndicator, const unsigned index,
+                                         void *buffer, size_t &size) {
+            size_t offset = 0;
 
             // Null-indicators
             int nullFieldsIndicatorActualSize = getActualByteForNullsIndicator(
@@ -628,7 +654,7 @@ namespace PeterDBTesting {
             memcpy((char *) buffer + offset, lang.c_str(), langLength);
             offset += langLength;
 
-            *size = offset;
+            size = offset;
 
         }
 
@@ -861,7 +887,7 @@ namespace PeterDBTesting {
 
                 if (!nullBit) {
                     // compute the floating number
-                    auto real = (float) (attr_pos + 3);
+                    auto real = (float) (attr_pos + 3.001);
                     memcpy((char *) buffer + offset, &real, sizeof(float));
                     offset += sizeof(float);
                 }
@@ -894,8 +920,8 @@ namespace PeterDBTesting {
         }
 
         static void prepareLargeRecord4(int fieldCount, unsigned char *nullFieldsIndicator,
-                                        const int index, void *buffer, unsigned *size) {
-            int offset = 0;
+                                        const int index, void *buffer, size_t &size) {
+            size_t offset = 0;
 
             // compute the count
             int count = index % 2200 + 1;
@@ -925,28 +951,48 @@ namespace PeterDBTesting {
             memcpy((char *) buffer + offset, &index, sizeof(int));
             offset += sizeof(int);
 
-            *size = offset;
+            size = offset;
         }
 
-        static void getByteOffset(unsigned pos, unsigned &bytes, unsigned &offset) {
-            bytes = pos / 8;
+    };
 
-            offset = 7 - pos % 8;
-        }
+    class RBFM_Private_Test : public RBFM_Test {
 
-        static void setBit(char &src, bool value, unsigned offset) {
-            if (value) {
-                src |= (unsigned) 1 << offset;
-            } else {
-                src &= ~((unsigned) 1 << offset);
+    protected:
+        bool destroyFile = true;
+
+    public:
+        void SetUp() override {
+
+            fileName = "rbfm_private_test_file";
+
+            if (!fileExists(fileName)) {
+                // Create a file
+                ASSERT_EQ(rbfm.createFile(fileName), success) << "Creating the file should not fail: " << fileName;
+                ASSERT_TRUE(fileExists(fileName)) << "The file is not found: " << fileName;
             }
+
+            // Open the file
+            ASSERT_EQ(rbfm.openFile(fileName, fileHandle), success) << "Opening the file should not fail: " << fileName;
+
         }
 
-        static void setAttrNull(void *src, ushort attrNum, bool isNull) {
-            unsigned bytes = 0;
-            unsigned pos = 0;
-            getByteOffset(attrNum, bytes, pos);
-            setBit(*((char *) src + bytes), isNull, pos);
+        void TearDown() override {
+            // Destruct the buffers
+            free(inBuffer);
+            free(outBuffer);
+            free(nullsIndicator);
+
+            // Close the file
+            ASSERT_EQ(rbfm.closeFile(fileHandle), success) << "Closing the file should not fail.";
+
+            if (destroyFile) {
+                // Destroy the file
+                ASSERT_EQ(rbfm.destroyFile(fileName), success) << "Destroying the file should not fail.";
+
+                remove("rids_file");
+                remove("sizes_file");
+            }
         }
 
     };
