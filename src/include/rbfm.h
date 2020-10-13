@@ -6,10 +6,10 @@
 #include "pfm.h"
 
 namespace PeterDB {
-    // Record ID
+    // record ID
     typedef struct {
         unsigned pageNum;           // page number
-        unsigned short slotNum;     // slot number in the page
+        unsigned short slotNum;     // slotdir number in the page
     } RID;
 
     // Attribute

@@ -1,3 +1,3 @@
-add_library(pfm pfm.cc Record.cpp ../include/Record.h Slot.cpp ../include/Slot.h)
+add_library(pfm pfm.cc ../rbfm/record.cc ../include/record.h ../rbfm/slotdir.cc ../include/slotdir.h)
 add_dependencies(pfm googlelog)
 target_link_libraries(pfm glog)
