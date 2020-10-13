@@ -1,4 +1,4 @@
-#include "src/include/slotdir.h"
+#include "src/include/page.h"
 
 namespace PeterDB {
     SlotDirectory::SlotDirectory() {}
