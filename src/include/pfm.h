@@ -56,7 +56,6 @@ namespace PeterDB {
     private:
         RC persistCounters();
     };
-
 } // namespace PeterDB
 
 #endif // _pfm_h_

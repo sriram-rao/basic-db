@@ -80,7 +80,7 @@ namespace PeterDBTesting {
             return indicator;
         }
 
-        // Record Descriptor for TweetMessage
+        // record Descriptor for TweetMessage
         static void createRecordDescriptorForTweetMessage(std::vector<PeterDB::Attribute> &recordDescriptor) {
 
             PeterDB::Attribute attr;
@@ -245,7 +245,7 @@ namespace PeterDBTesting {
             *size = offset;
         }
 
-        // Record Descriptor for TwitterUser
+        // record Descriptor for TwitterUser
         static void createRecordDescriptorForTwitterUser(std::vector<PeterDB::Attribute> &recordDescriptor) {
 
             PeterDB::Attribute attr;
@@ -281,7 +281,7 @@ namespace PeterDBTesting {
 
         }
 
-        // Record Descriptor for TwitterUser
+        // record Descriptor for TwitterUser
         static void createRecordDescriptorForTwitterUser2(
                 std::vector<PeterDB::Attribute> &recordDescriptor) {
 
