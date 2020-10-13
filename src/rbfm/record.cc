@@ -1,4 +1,4 @@
-#include "src/include/record.h"
+#include "src/include/page.h"
 
 namespace PeterDB {
     Record::Record() {}
