@@ -2,6 +2,7 @@
 #define _rbfm_h_
 
 #include "pfm.h"
+#include <vector>
 using namespace std;
 
 namespace PeterDB {

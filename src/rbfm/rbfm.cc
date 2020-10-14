@@ -116,7 +116,7 @@ namespace PeterDB {
         memcpy(slots, pageData + PAGE_SIZE - sizeof(int) * 2 - slotSize, slotSize);
         SlotDirectory dir = SlotDirectory(freeBytes, recordCount, slots);
 
-        // Read records as vector
+        // Read records as array
         size_t recordsSize = PAGE_SIZE - sizeof(short) * 2 - slotSize - freeBytes;
         Record* records = (Record*) malloc(recordsSize);
         memcpy(records, pageData, recordsSize); // TODO: check
