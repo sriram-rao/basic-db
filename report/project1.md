@@ -55,13 +55,14 @@ TODO
 
 - How many hidden pages are utilized in your design?
 
-We store a separate metadata file, hidden from the application. So, we will have hidden data stored in a page but not in the same file. 
-Currently, in this manner we use 1 hidden page to store the read, write and append counters.
-We may choose to also have a map of page number to available free space here if we decide that this will help during inserts. (Revisit this documentation).
+Currently, in this manner we use 1 hidden page to store the read, write and append counters, and other private metadata like the number of data pages and the map of page numbers to available free space.
 
 - Show your hidden page(s) format design if applicable
 
-Currently, we store the three unsigned int counters read, write and append page counters.
+Currently, we store the three unsigned int counters read, write and append page counters, and the number of data pages.
+We also store a map of page number to available free space. 
+In one hidden page, we can store metadata about X pages and their free spaces.
+We plan to manage with this with the following logic: if a page is considered full (actually full or not enough space for even the fixed data fields of a record), we will remove it from this map.
 
 
 ### 5. Implementation Detail

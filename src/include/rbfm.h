@@ -1,6 +1,7 @@
 #ifndef _rbfm_h_
 #define _rbfm_h_
 
+
 #include <vector>
 #include <string>
 #include <cstring>
@@ -9,6 +10,7 @@
 #include <sstream>
 
 #include "pfm.h"
+using namespace std;
 
 namespace PeterDB {
     // record ID
@@ -21,6 +23,12 @@ namespace PeterDB {
     typedef enum {
         TypeInt = 0, TypeReal, TypeVarChar
     } AttrType;
+
+    typedef struct {
+        // slot data
+        unsigned short offset;
+        unsigned short length;
+    } Slot;
 
     typedef unsigned AttrLength;
 
@@ -41,6 +49,46 @@ namespace PeterDB {
         NO_OP       // no condition
     } CompOp;
 
+    class Record {
+    protected:
+        short attributeCount{};
+        unsigned short* fieldOffsets{};
+        unsigned char* values{};
+
+    public:
+        RID rid{};
+        Record();
+
+        Record(RID id, short countOfAttributes, unsigned short* fieldOffsets, unsigned char* values);
+
+        char* to_bytes();
+
+        virtual ~Record();
+    };
+
+    class SlotDirectory {
+    public:
+        Slot* slots;
+        short freeSpace;
+        unsigned short recordCount;
+        SlotDirectory();
+        SlotDirectory(short freeSpace, short recordCount, Slot* slots);
+        virtual ~SlotDirectory();
+
+        RC addSlot(unsigned short offset, unsigned short recordLength);
+        unsigned short getRecordLength(unsigned short slotNum) const;
+        unsigned short getRecordOffset(unsigned short slotNum) const;
+    };
+
+    class Page {
+    public:
+        SlotDirectory directory;
+        Record* records;
+        RC addRecord(Record record, unsigned short recordLength);
+        Page();
+        Page(SlotDirectory directory, Record* records);
+        ~Page();
+    };
 
     /********************************************************************
     * The scan iterator is NOT required to be implemented for Project 1 *
@@ -144,6 +192,9 @@ namespace PeterDB {
         RecordBasedFileManager(const RecordBasedFileManager &);                     // Prevent construction by copying
         RecordBasedFileManager &operator=(const RecordBasedFileManager &);          // Prevent assignment
 
+    private:
+        static Page readPage(PageNum pageNum, FileHandle &file);
+        static RC writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend);
     };
 
 } // namespace PeterDB

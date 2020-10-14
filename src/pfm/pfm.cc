@@ -25,9 +25,7 @@ namespace PeterDB {
     }
 
     RC PagedFileManager::destroyFile(const std::string &fileName) {
-        if(!FileHandle::exists(fileName)) return -1;
-        remove(fileName.c_str());
-        return 0;
+        return remove(fileName.c_str());
     }
 
     RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
@@ -52,6 +50,7 @@ namespace PeterDB {
         readPageCounter = 0;
         writePageCounter = 0;
         appendPageCounter = 0;
+        dataPageCount = 0;
         file = NULL;
     }
 
@@ -59,6 +58,7 @@ namespace PeterDB {
         readPageCounter = 0;
         writePageCounter = 0;
         appendPageCounter = 0;
+        dataPageCount = 0;
         file = f;
     }
 
@@ -69,7 +69,7 @@ namespace PeterDB {
         if (getNumberOfPages() < pageNum) return -1;
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
         fread(data, PAGE_SIZE, 1, file);
-        this->readPageCounter = this->readPageCounter + 1;
+        this->readPageCounter++;
         return 0;
     }
 
@@ -77,19 +77,24 @@ namespace PeterDB {
         if (getNumberOfPages() < pageNum) return -1;
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
         fwrite(data, PAGE_SIZE, 1, file);
-        this->writePageCounter = this->writePageCounter + 1;
+        this->writePageCounter++;
         return 0;
     }
 
     RC FileHandle::appendPage(const void *data) {
         fseek(file, 0, SEEK_END);
         fwrite(data, PAGE_SIZE, 1, file);
-        this->appendPageCounter = this->appendPageCounter + 1;
+        this->appendPageCounter++;
+        this->dataPageCount++;
         return 0;
     }
 
     unsigned FileHandle::getNumberOfPages() {
-        return this->appendPageCounter;
+        return this->dataPageCount;
+    }
+
+    RC FileHandle::setPageSpace(PageNum num, short freeBytes) {
+        this->pageSpaceMap[num] = freeBytes;
     }
 
     RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
@@ -100,12 +105,13 @@ namespace PeterDB {
     }
 
     RC FileHandle::openFile() {
-        unsigned counters[3] = { 0, 0, 0 };
+        unsigned counters[4] = { 0, 0, 0, 0 };
         fseek(file, 0, SEEK_SET);
-        fread(counters, sizeof(unsigned), 3, file);
+        fread(counters, sizeof(unsigned), 4, file);
         this->readPageCounter = counters[0];
         this->writePageCounter = counters[1];
         this->appendPageCounter = counters[2];
+        this->dataPageCount = counters[3];
         return 0;
     }
 
@@ -114,13 +120,13 @@ namespace PeterDB {
         return 0;
     }
 
-    bool FileHandle::isOpen() const{
+    bool FileHandle::isOpen() const {
         return file != NULL;
     }
 
     RC FileHandle::init(FILE *file) {
         fseek(file, 0, SEEK_SET);
-        unsigned counters[PAGE_SIZE / sizeof(unsigned)] = {0, 0, 0};
+        unsigned counters[PAGE_SIZE / sizeof(unsigned)] = { 0, 0, 1, 0 }; // Initialize appendPageCounter to 1 since we are using a hidden page
         fwrite(counters, sizeof(unsigned), PAGE_SIZE / sizeof(unsigned), file);
         return 0;
     }
@@ -133,9 +139,19 @@ namespace PeterDB {
     RC FileHandle::persistCounters(){
         if (NULL == file) return 0;
         fseek(file, 0, SEEK_SET);
-        unsigned counters[3] = { readPageCounter, writePageCounter, appendPageCounter };
-        fwrite(counters, sizeof(unsigned), 3, file);
+        this->writePageCounter++;
+        unsigned counters[4] = { readPageCounter, writePageCounter, appendPageCounter, dataPageCount };
+        fwrite(counters, sizeof(unsigned), 4, file);
+        fwrite(&pageSpaceMap, (sizeof(PageNum) + sizeof(short)), pageSpaceMap.size(), file); //TODO: Handle when map becomes too big for one page
         return 0;
+    }
+
+    short FileHandle::findFreePage(size_t bytesToStore) {
+        for (int i = 0; i < pageSpaceMap.size(); i++){
+            if (pageSpaceMap[i] > bytesToStore)
+                return i;
+        }
+        return -1;
     }
 
 } // namespace PeterDB

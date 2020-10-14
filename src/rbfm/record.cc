@@ -1,17 +1,16 @@
-#include "src/include/page.h"
+#include "src/include/rbfm.h"
 
 namespace PeterDB {
-    Record::Record() {}
+    Record::Record() = default;
 
-    Record::Record(int countOfAttributes, int *fieldOffset, unsigned char* values) {
-        this->countOfAttributes = countOfAttributes;
-        this->fieldOffset = fieldOffset;
+    Record::Record(RID id, short countOfAttributes, unsigned short* offsets, unsigned char* values) {
+        this->rid = id;
+        this->attributeCount = countOfAttributes;
+        this->fieldOffsets = offsets;
         this->values = values;
     }
 
-    Record::operator const char *() {
-        // TODO :: logic from converting byte array to string
-    }
+    char * Record::to_bytes() {}
 
     Record::~Record() = default;
 }
