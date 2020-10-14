@@ -2,6 +2,11 @@
 #define _rbfm_h_
 
 #include <vector>
+#include <string>
+#include <cstring>
+#include <cmath>
+#include <iomanip>
+#include <sstream>
 
 #include "pfm.h"
 
