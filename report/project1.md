@@ -64,6 +64,7 @@ We also store a map of page number to available free space.
 In one hidden page, we can store metadata about X pages and their free spaces.
 We plan to manage with this with the following logic: if a page is considered full (actually full or not enough space for even the fixed data fields of a record), we will remove it from this map.
 
+
 ### 5. Implementation Detail
 - Other implementation details goes here.
 
