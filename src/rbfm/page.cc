@@ -1,30 +1,26 @@
 #include "src/include/rbfm.h"
 
-#define RECORD_BATCH 5
-
 using namespace std;
 
 namespace PeterDB {
     Page::Page() {
-
+        Slot* slots = (Slot*) malloc(sizeof(Slot));
+        this->records = (unsigned char*) malloc(sizeof(unsigned char));
+        this->directory = SlotDirectory(PAGE_SIZE - sizeof(Slot) - sizeof(unsigned char), 0, slots);
     }
 
-    Page::Page(SlotDirectory directory, Record* records) {
+    Page::Page(SlotDirectory directory, unsigned char* records) {
         this->directory = directory;
         this->records = records;
     }
 
     RC Page::addRecord(Record record, unsigned short recordLength) {
-        short recordCount = this->directory.recordCount;
-        if (recordCount % RECORD_BATCH == 0) {
-            Record* newSet = (Record *)malloc(sizeof(Record) * (recordCount + RECORD_BATCH));
-            std::copy(this->records, this->records + recordCount, newSet);
-            delete [] this->records;
-            this->records = newSet;
-        }
-        this->records[recordCount] = record;
-        this->directory.recordCount = this->directory.recordCount + 1;
-        this->directory.freeSpace = this->directory.freeSpace - recordLength - sizeof(Slot);
+        short dataSize = PAGE_SIZE - this->directory.freeSpace - sizeof(short) * 2 - sizeof(Slot) * this->directory.recordCount;
+        unsigned char* newBytes = (unsigned char *) malloc(dataSize + recordLength);
+        memcpy(newBytes, this->records, dataSize);
+        memcpy(newBytes + dataSize, record.toBytes(recordLength), recordLength);
+        free(this->records);
+        this->records = newBytes;
         return 0;
     }
 
