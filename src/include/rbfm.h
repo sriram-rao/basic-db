@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include "pfm.h"
+#include <vector>
 using namespace std;
 
 namespace PeterDB {
@@ -61,7 +62,8 @@ namespace PeterDB {
 
         Record(RID id, short countOfAttributes, unsigned short* fieldOffsets, unsigned char* values);
 
-        char* to_bytes();
+        unsigned char* toBytes(u_short recordLength);
+        static Record fromBytes(unsigned char *);
 
         virtual ~Record();
     };
@@ -69,7 +71,7 @@ namespace PeterDB {
     class SlotDirectory {
     public:
         Slot* slots;
-        short freeSpace;
+        unsigned short freeSpace;
         unsigned short recordCount;
         SlotDirectory();
         SlotDirectory(short freeSpace, short recordCount, Slot* slots);
@@ -83,10 +85,10 @@ namespace PeterDB {
     class Page {
     public:
         SlotDirectory directory;
-        Record* records;
+        unsigned char* records;
         RC addRecord(Record record, unsigned short recordLength);
         Page();
-        Page(SlotDirectory directory, Record* records);
+        Page(SlotDirectory directory, unsigned char* records);
         ~Page();
     };
 

@@ -39,7 +39,7 @@ namespace PeterDB {
                                             const void *data, RID &rid) {
         // Figure out record details
         short nullBytes = ceil(((float)recordDescriptor.size()) / 8);
-        unsigned short recordLength = 0;
+        unsigned short recordLength = sizeof(short) + sizeof(short) * recordDescriptor.size(); // space for fieldCount 'n' and n offsets
         unsigned short offsets[recordDescriptor.size()];
         for (unsigned short i = 0; i < recordDescriptor.size(); ++i) {
             // TODO: fix this for varchar
@@ -48,20 +48,21 @@ namespace PeterDB {
         }
 
         // Find the right page
+        unsigned short num = fileHandle.dataPageCount, slotNum = 0, pageDataSize = 0;
         short pageNum = fileHandle.findFreePage(recordLength + sizeof(offsets) + sizeof(short) + sizeof(Slot));
-        unsigned short num = pageNum >= 0 ? (unsigned short) pageNum : fileHandle.dataPageCount;
-
-        Page p = readPage(num, fileHandle);
-        RID newId { num, p.directory.recordCount };
-        unsigned short pageDataSize = 0;
-        for (unsigned short i = 0; i < p.directory.recordCount; ++i)
-            pageDataSize += p.directory.getRecordLength(i);
-
+        Page p = pageNum >= 0 ? readPage(num, fileHandle) : Page();
+        if (pageNum >= 0) {
+            num = (unsigned short) pageNum;
+            slotNum = p.directory.recordCount;
+            for (unsigned short i = 0; i < p.directory.recordCount; ++i)
+                pageDataSize += p.directory.getRecordLength(i);
+        }
+        rid = { num, slotNum };
 
         // Make the record
         unsigned char* fieldData = (unsigned char*)malloc(recordLength);
         memcpy(fieldData, (char*)data + nullBytes, recordLength);
-        Record r = Record(newId, recordDescriptor.size(), offsets, fieldData);
+        Record r = Record(rid, recordDescriptor.size(), offsets, fieldData);
         p.directory.addSlot(pageDataSize, recordLength);
         p.addRecord(r, recordLength);
 
@@ -72,7 +73,16 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                           const RID &rid, void *data) {
-        return -1;
+        char* page = (char*) malloc(PAGE_SIZE);
+        Page p = readPage(rid.pageNum, fileHandle);
+        unsigned short recordOffset = p.directory.slots[rid.slotNum].offset,
+            recordLength = p.directory.slots[rid.slotNum].length;
+        memcpy(data, page + recordOffset, recordLength);
+
+        // TODO: Format data here
+
+
+        return 0;
     }
 
     RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
@@ -160,13 +170,13 @@ namespace PeterDB {
         memcpy(&recordCount, pageData + PAGE_SIZE - sizeof(short), sizeof(short));
         memcpy(&freeBytes, pageData + PAGE_SIZE - sizeof(short) * 2, sizeof(short));
         size_t slotSize = sizeof(Slot) * recordCount;
-        Slot* slots = (Slot*) malloc(slotSize);
-        memcpy(slots, pageData + PAGE_SIZE - sizeof(int) * 2 - slotSize, slotSize);
+        Slot slots[recordCount];
+        memcpy(slots, pageData + PAGE_SIZE - sizeof(short) * 2 - slotSize, slotSize);
         SlotDirectory dir = SlotDirectory(freeBytes, recordCount, slots);
 
-        // Read records as vector
-        size_t recordsSize = PAGE_SIZE - sizeof(short) * 2 - slotSize - freeBytes;
-        Record* records = (Record*) malloc(recordsSize);
+        // Read records as array
+        u_short recordsSize = PAGE_SIZE - sizeof(short) * 2 - slotSize - freeBytes;
+        unsigned char* records = (unsigned char*) malloc(recordsSize);
         memcpy(records, pageData, recordsSize); // TODO: check
         free(pageData);
         return Page(dir, records);
@@ -182,12 +192,12 @@ namespace PeterDB {
         memcpy(pageData, page.records, recordsSize);
         short freeBytes = PAGE_SIZE - recordsSize - sizeof(short) * 2 - slotsSize;
         file.setPageSpace(pageNum, freeBytes);
-        memcpy(pageData + recordsSize + freeBytes, page.directory.slots, slotsSize);
-        memcpy(pageData + recordsSize + freeBytes + slotsSize, &freeBytes, sizeof(short));
-        memcpy(pageData + recordsSize + freeBytes + slotsSize + sizeof(short), &page.directory.recordCount, sizeof(short));
+//        memcpy(pageData + recordsSize + freeBytes, page.directory.slots, slotsSize);
+        memcpy(pageData + PAGE_SIZE - sizeof(short) * 2 - slotsSize, page.directory.slots, slotsSize);
+        memcpy(pageData + PAGE_SIZE - sizeof(short) * 2, &freeBytes, sizeof(short));
+        memcpy(pageData + PAGE_SIZE - sizeof(short), &page.directory.recordCount, sizeof(short));
 
         return toAppend ? file.appendPage(pageData) : file.writePage(pageNum, pageData);
     }
-
 } // namespace PeterDB
 

@@ -112,6 +112,7 @@ namespace PeterDB {
         this->writePageCounter = counters[1];
         this->appendPageCounter = counters[2];
         this->dataPageCount = counters[3];
+        fread(&this->pageSpaceMap, sizeof(PageNum) + sizeof(short), dataPageCount, file);
         return 0;
     }
 
@@ -147,7 +148,7 @@ namespace PeterDB {
     }
 
     short FileHandle::findFreePage(size_t bytesToStore) {
-        for (int i = 0; i < pageSpaceMap.size(); i++){
+        for (int i = (int)pageSpaceMap.size() - 1; i >= 0 ; --i){
             if (pageSpaceMap[i] > bytesToStore)
                 return i;
         }

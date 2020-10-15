@@ -12,8 +12,17 @@ namespace PeterDB {
     SlotDirectory::~SlotDirectory() = default;
 
     RC SlotDirectory::addSlot(unsigned short offset, unsigned short recordLength) {
-        // TODO :: Add to slot dir
-        return -1;
+        // Add to slot dir
+        Slot* newDir = (Slot *) malloc((this->recordCount + 1) * sizeof(Slot));
+        memcpy(newDir, this->slots, this->recordCount * sizeof(Slot));
+        free(this->slots);
+        this->slots = newDir;
+        *(this->slots + this->recordCount) = {offset, recordLength};
+
+        // reduce free space by one slot size
+        this->freeSpace = this->freeSpace - sizeof(Slot);
+        this->recordCount = this->recordCount + 1;
+        return 0;
     }
 
     unsigned short SlotDirectory::getRecordLength(unsigned short slotNum) const {
