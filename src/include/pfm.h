@@ -4,6 +4,7 @@
 #define PAGE_SIZE 4096
 
 #include <string>
+#include <unordered_map>
 
 namespace PeterDB {
 
@@ -35,11 +36,13 @@ namespace PeterDB {
         unsigned readPageCounter;
         unsigned writePageCounter;
         unsigned appendPageCounter;
+        unsigned dataPageCount;
+        short* pageSpaceMap;
+        FILE* file;
 
         FileHandle();                                                       // Default constructor
         ~FileHandle();                                                      // Destructor
-        FileHandle(FILE *file);
-        FileHandle& operator= (const FileHandle &);
+        FileHandle(FILE* file);
 
         RC readPage(PageNum pageNum, void *data);                           // Get a specific page
         RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
@@ -50,13 +53,15 @@ namespace PeterDB {
         RC openFile();
         RC closeFile();
         bool isOpen() const;
+        RC setPageSpace(PageNum num, short freeBytes);
         static bool exists(const std::string &fileName);
-        FILE* file;
+        static RC init(FILE* file);                                         // Initialize a new file with hidden pages
+
+        short findFreePage(size_t i);
 
     private:
         RC persistCounters();
     };
-
 } // namespace PeterDB
 
 #endif // _pfm_h_

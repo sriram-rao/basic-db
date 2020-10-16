@@ -1,21 +1,35 @@
 #ifndef _rbfm_h_
 #define _rbfm_h_
 
+
 #include <vector>
+#include <string>
+#include <cstring>
+#include <cmath>
+#include <iomanip>
+#include <sstream>
 
 #include "pfm.h"
+#include <vector>
+using namespace std;
 
 namespace PeterDB {
-    // Record ID
+    // record ID
     typedef struct {
         unsigned pageNum;           // page number
-        unsigned short slotNum;     // slot number in the page
+        unsigned short slotNum;     // slotdir number in the page
     } RID;
 
     // Attribute
     typedef enum {
         TypeInt = 0, TypeReal, TypeVarChar
     } AttrType;
+
+    typedef struct {
+        // slot data
+        unsigned short offset;
+        unsigned short length;
+    } Slot;
 
     typedef unsigned AttrLength;
 
@@ -36,6 +50,46 @@ namespace PeterDB {
         NO_OP       // no condition
     } CompOp;
 
+    class Record {
+    public:
+        short attributeCount;
+        short* fieldOffsets;
+        unsigned char* values;
+
+        RID rid{};
+        Record();
+
+        Record(RID id, short countOfAttributes, short* fieldOffsets, unsigned char* values);
+
+        unsigned char* toBytes(u_short recordLength);
+        static Record fromBytes(unsigned char *);
+
+        virtual ~Record();
+    };
+
+    class SlotDirectory {
+    public:
+        Slot* slots;
+        unsigned short freeSpace;
+        unsigned short recordCount;
+        SlotDirectory();
+        SlotDirectory(short freeSpace, short recordCount, Slot* slots);
+        virtual ~SlotDirectory();
+
+        RC addSlot(unsigned short offset, unsigned short recordLength);
+        unsigned short getRecordLength(unsigned short slotNum) const;
+        unsigned short getRecordOffset(unsigned short slotNum) const;
+    };
+
+    class Page {
+    public:
+        SlotDirectory directory;
+        unsigned char* records;
+        RC addRecord(Record record, unsigned short recordLength);
+        Page();
+        Page(SlotDirectory directory, unsigned char* records);
+        ~Page();
+    };
 
     /********************************************************************
     * The scan iterator is NOT required to be implemented for Project 1 *
@@ -139,6 +193,9 @@ namespace PeterDB {
         RecordBasedFileManager(const RecordBasedFileManager &);                     // Prevent construction by copying
         RecordBasedFileManager &operator=(const RecordBasedFileManager &);          // Prevent assignment
 
+    private:
+        static Page readPage(PageNum pageNum, FileHandle &file);
+        static RC writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend);
     };
 
 } // namespace PeterDB
