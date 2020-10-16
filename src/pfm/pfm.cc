@@ -85,6 +85,7 @@ namespace PeterDB {
         fseek(file, 0, SEEK_END);
         fwrite(data, PAGE_SIZE, 1, file);
         this->appendPageCounter++;
+        this->pageSpaceMap[dataPageCount] = PAGE_SIZE;
         this->dataPageCount++;
         return 0;
     }

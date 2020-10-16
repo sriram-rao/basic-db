@@ -42,7 +42,7 @@ namespace PeterDB {
 
         FileHandle();                                                       // Default constructor
         ~FileHandle();                                                      // Destructor
-        FileHandle(FILE *file);
+        FileHandle(FILE* file);
 
         RC readPage(PageNum pageNum, void *data);                           // Get a specific page
         RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
