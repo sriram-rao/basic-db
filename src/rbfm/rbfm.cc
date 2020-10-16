@@ -96,7 +96,8 @@ namespace PeterDB {
             for (unsigned short i = 0; i < p.directory.recordCount; ++i)
                 pageDataSize += p.directory.getRecordLength(i);
         }
-        rid = { num, slotNum };
+        rid.pageNum = num;
+        rid.slotNum = slotNum;
 
         p.directory.addSlot(pageDataSize, recordLength);
         p.addRecord(r, recordLength);
