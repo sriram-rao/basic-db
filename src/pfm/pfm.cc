@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <vector>
 
+using namespace std;
+
 namespace PeterDB {
     PagedFileManager &PagedFileManager::instance() {
         static PagedFileManager _pf_manager = PagedFileManager();
