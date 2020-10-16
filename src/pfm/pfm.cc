@@ -1,6 +1,7 @@
 #include "src/include/pfm.h"
 #include <cstdio>
 #include <vector>
+#include <cstring>
 
 using namespace std;
 
@@ -73,7 +74,7 @@ namespace PeterDB {
         char* bytes = (char*) malloc(PAGE_SIZE);
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
         fread(bytes, PAGE_SIZE, 1, file);
-        memcpy(data, bytes, PAGE_SIZE);
+        std::memcpy(data, bytes, PAGE_SIZE);
         this->readPageCounter++;
         return 0;
     }

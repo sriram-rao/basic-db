@@ -1,4 +1,5 @@
 #include "src/include/rbfm.h"
+#include <cstring>
 
 using namespace std;
 

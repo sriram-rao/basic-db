@@ -1,6 +1,9 @@
 #include "src/include/rbfm.h"
 #include <vector>
 #include <map>
+#include <cstring>
+
+using namespace std;
 
 namespace PeterDB {
     RecordBasedFileManager &RecordBasedFileManager::instance() {
