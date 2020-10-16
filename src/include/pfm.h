@@ -37,7 +37,7 @@ namespace PeterDB {
         unsigned writePageCounter;
         unsigned appendPageCounter;
         unsigned dataPageCount;
-        std::unordered_map<short, short> pageSpaceMap;
+        short* pageSpaceMap;
         FILE* file;
 
         FileHandle();                                                       // Default constructor

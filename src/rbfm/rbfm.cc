@@ -250,12 +250,13 @@ namespace PeterDB {
 
         memcpy(pageData, page.records, recordsSize);
         short freeBytes = PAGE_SIZE - recordsSize - sizeof(short) * 2 - slotsSize;
-        file.setPageSpace(pageNum, freeBytes);
         memcpy(pageData + PAGE_SIZE - sizeof(short) * 2 - slotsSize, page.directory.slots, slotsSize);
         memcpy(pageData + PAGE_SIZE - sizeof(short) * 2, &freeBytes, sizeof(short));
         memcpy(pageData + PAGE_SIZE - sizeof(short), &page.directory.recordCount, sizeof(short));
+        RC writeSuccess = toAppend ? file.appendPage(pageData) : file.writePage(pageNum, pageData);
+        file.setPageSpace(pageNum, freeBytes);
 
-        return toAppend ? file.appendPage(pageData) : file.writePage(pageNum, pageData);
+        return writeSuccess;
     }
 } // namespace PeterDB
 
