@@ -67,8 +67,10 @@ namespace PeterDB {
 
     RC FileHandle::readPage(PageNum pageNum, void *data) {
         if (getNumberOfPages() < pageNum) return -1;
+        char* bytes = (char*) malloc(PAGE_SIZE);
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
-        fread(data, PAGE_SIZE, 1, file);
+        fread(bytes, PAGE_SIZE, 1, file);
+        memcpy(data, bytes, PAGE_SIZE);
         this->readPageCounter++;
         return 0;
     }
@@ -85,6 +87,12 @@ namespace PeterDB {
         fseek(file, 0, SEEK_END);
         fwrite(data, PAGE_SIZE, 1, file);
         this->appendPageCounter++;
+        short* newMap = (short*)malloc((dataPageCount + 1) * sizeof(short));
+        memcpy(newMap, this->pageSpaceMap, sizeof(short) * dataPageCount);
+        newMap[dataPageCount] = PAGE_SIZE;
+        if (dataPageCount > 0) free(this->pageSpaceMap);
+        this->pageSpaceMap = newMap;
+
         this->dataPageCount++;
         return 0;
     }
@@ -112,7 +120,9 @@ namespace PeterDB {
         this->writePageCounter = counters[1];
         this->appendPageCounter = counters[2];
         this->dataPageCount = counters[3];
-        fread(&this->pageSpaceMap, sizeof(PageNum) + sizeof(short), dataPageCount, file);
+        pageSpaceMap = (short*)malloc(sizeof(short) * dataPageCount);
+        if (dataPageCount > 0)
+            fread(pageSpaceMap, sizeof(short), dataPageCount, file);
         return 0;
     }
 
@@ -143,12 +153,12 @@ namespace PeterDB {
         this->writePageCounter++;
         unsigned counters[4] = { readPageCounter, writePageCounter, appendPageCounter, dataPageCount };
         fwrite(counters, sizeof(unsigned), 4, file);
-        fwrite(&pageSpaceMap, (sizeof(PageNum) + sizeof(short)), pageSpaceMap.size(), file); //TODO: Handle when map becomes too big for one page
+        fwrite(pageSpaceMap, sizeof(short), dataPageCount, file); //TODO: Handle when map becomes too big for one page
         return 0;
     }
 
     short FileHandle::findFreePage(size_t bytesToStore) {
-        for (int i = (int)pageSpaceMap.size() - 1; i >= 0 ; --i){
+        for (int i = (int)dataPageCount - 1; i >= 0 ; --i){
             if (pageSpaceMap[i] > bytesToStore)
                 return i;
         }
