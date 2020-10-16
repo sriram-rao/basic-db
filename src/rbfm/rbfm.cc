@@ -46,6 +46,7 @@ namespace PeterDB {
         u_short recordLength = sizeof(short) + sizeof(short) * recordDescriptor.size(); // space for fieldCount 'n' and n offsets
         short dataOffset = sizeof(short) * (recordDescriptor.size() + 1);
         short offsets[recordDescriptor.size()];
+        int currentOffset = nullBytes;
         for (short i = 0; i < recordDescriptor.size(); ++i) {
             // check null
             if (((char*)data)[i / 8] & (1 << (7 - i % 8))) {
@@ -58,18 +59,20 @@ namespace PeterDB {
             int fieldSize = recordDescriptor[i].type == TypeVarChar ? 0 : recordDescriptor[i].length;
             if (recordDescriptor[i].type == TypeVarChar) {
                 int varcharSize = 0;
-                memcpy(&varcharSize, (char *) data + nullBytes + offsets[i-1], 4);
+                memcpy(&varcharSize, (char *) data + currentOffset, 4);
                 fieldSize = varcharSize;
+                currentOffset += 4;
             }
             recordLength += fieldSize;
             fieldInfo[i] = fieldSize;
             dataOffset += fieldSize;
             offsets[i] = dataOffset;
+            currentOffset += fieldSize;
         }
 
         // Make the record
         unsigned char* fieldData = (unsigned char*)malloc(recordLength);
-        int currentOffset = nullBytes;
+        currentOffset = nullBytes;
         int copiedOffset = 0;
         for(int i = 0; i < recordDescriptor.size(); i++) {
             if (offsets[i] == -1) // skip nulls
@@ -229,8 +232,9 @@ namespace PeterDB {
         memcpy(&recordCount, pageData + PAGE_SIZE - sizeof(short), sizeof(short));
         memcpy(&freeBytes, pageData + PAGE_SIZE - sizeof(short) * 2, sizeof(short));
         size_t slotSize = sizeof(Slot) * recordCount;
-        Slot slots[recordCount];
-        memcpy(slots, pageData + PAGE_SIZE - sizeof(short) * 2 - slotSize, slotSize);
+        vector<Slot> slots;
+        slots.insert(slots.begin(), recordCount, { 0, 0 });
+        memcpy(slots.data(), pageData + PAGE_SIZE - sizeof(short) * 2 - slotSize, slotSize);
         SlotDirectory dir = SlotDirectory(freeBytes, recordCount, slots);
 
         // Read records as array
@@ -243,14 +247,14 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend) {
         char* pageData = (char*) malloc(PAGE_SIZE);
-        short slotsSize = sizeof(Slot) * page.directory.recordCount;
+        short slotsSize = sizeof(Slot) * page.directory.slots.size();
         unsigned short recordsSize = 0;
         for (short i = 0; i < page.directory.recordCount; ++i)
             recordsSize = page.directory.getRecordLength(i);
 
         memcpy(pageData, page.records, recordsSize);
         short freeBytes = PAGE_SIZE - recordsSize - sizeof(short) * 2 - slotsSize;
-        memcpy(pageData + PAGE_SIZE - sizeof(short) * 2 - slotsSize, page.directory.slots, slotsSize);
+        memcpy(pageData + PAGE_SIZE - sizeof(short) * 2 - slotsSize, page.directory.slots.data(), slotsSize);
         memcpy(pageData + PAGE_SIZE - sizeof(short) * 2, &freeBytes, sizeof(short));
         memcpy(pageData + PAGE_SIZE - sizeof(short), &page.directory.recordCount, sizeof(short));
         RC writeSuccess = toAppend ? file.appendPage(pageData) : file.writePage(pageNum, pageData);

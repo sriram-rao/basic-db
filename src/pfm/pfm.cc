@@ -1,5 +1,6 @@
 #include "src/include/pfm.h"
 #include <cstdio>
+#include <vector>
 
 namespace PeterDB {
     PagedFileManager &PagedFileManager::instance() {
@@ -66,7 +67,7 @@ namespace PeterDB {
     }
 
     RC FileHandle::readPage(PageNum pageNum, void *data) {
-        if (getNumberOfPages() < pageNum) return -1;
+        if (getNumberOfPages() <= pageNum) return -1;
         char* bytes = (char*) malloc(PAGE_SIZE);
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
         fread(bytes, PAGE_SIZE, 1, file);
@@ -76,7 +77,7 @@ namespace PeterDB {
     }
 
     RC FileHandle::writePage(PageNum pageNum, const void *data) {
-        if (getNumberOfPages() < pageNum) return -1;
+        if (getNumberOfPages() <= pageNum) return -1;
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
         fwrite(data, PAGE_SIZE, 1, file);
         this->writePageCounter++;
@@ -87,12 +88,7 @@ namespace PeterDB {
         fseek(file, 0, SEEK_END);
         fwrite(data, PAGE_SIZE, 1, file);
         this->appendPageCounter++;
-        short* newMap = (short*)malloc((dataPageCount + 1) * sizeof(short));
-        memcpy(newMap, this->pageSpaceMap, sizeof(short) * dataPageCount);
-        newMap[dataPageCount] = PAGE_SIZE;
-        if (dataPageCount > 0) free(this->pageSpaceMap);
-        this->pageSpaceMap = newMap;
-
+        this->pageSpaceMap.push_back(PAGE_SIZE);
         this->dataPageCount++;
         return 0;
     }
@@ -102,6 +98,8 @@ namespace PeterDB {
     }
 
     RC FileHandle::setPageSpace(PageNum num, short freeBytes) {
+        if (pageSpaceMap.size() < num)
+            pageSpaceMap.insert(pageSpaceMap.end(), num - pageSpaceMap.size(), PAGE_SIZE);
         this->pageSpaceMap[num] = freeBytes;
     }
 
@@ -120,9 +118,10 @@ namespace PeterDB {
         this->writePageCounter = counters[1];
         this->appendPageCounter = counters[2];
         this->dataPageCount = counters[3];
-        pageSpaceMap = (short*)malloc(sizeof(short) * dataPageCount);
-        if (dataPageCount > 0)
-            fread(pageSpaceMap, sizeof(short), dataPageCount, file);
+        if (dataPageCount > 0) {
+            pageSpaceMap.insert(pageSpaceMap.begin(), dataPageCount, PAGE_SIZE);
+            fread(pageSpaceMap.data(), sizeof(short), dataPageCount, file);
+        }
         return 0;
     }
 
@@ -153,7 +152,7 @@ namespace PeterDB {
         this->writePageCounter++;
         unsigned counters[4] = { readPageCounter, writePageCounter, appendPageCounter, dataPageCount };
         fwrite(counters, sizeof(unsigned), 4, file);
-        fwrite(pageSpaceMap, sizeof(short), dataPageCount, file); //TODO: Handle when map becomes too big for one page
+        fwrite(pageSpaceMap.data(), sizeof(short), dataPageCount, file); //TODO: Handle when map becomes too big for one page
         return 0;
     }
 

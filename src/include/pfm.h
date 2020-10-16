@@ -5,6 +5,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace PeterDB {
 
@@ -37,7 +38,7 @@ namespace PeterDB {
         unsigned writePageCounter;
         unsigned appendPageCounter;
         unsigned dataPageCount;
-        short* pageSpaceMap;
+        std::vector<short> pageSpaceMap;
         FILE* file;
 
         FileHandle();                                                       // Default constructor
