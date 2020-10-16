@@ -5,12 +5,12 @@ namespace PeterDBTesting {
 
     TEST_F(RBFM_Test, insert_and_read_a_record) {
         // Functions tested
-        // 1. Create Record-Based File
-        // 2. Open Record-Based File
-        // 3. Insert Record
-        // 4. Read Record
-        // 5. Close Record-Based File
-        // 6. Destroy Record-Based File
+        // 1. Create record-Based File
+        // 2. Open record-Based File
+        // 3. Insert record
+        // 4. Read record
+        // 5. Close record-Based File
+        // 6. Destroy record-Based File
 
         PeterDB::RID rid;
         int recordSize = 0;
@@ -38,6 +38,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rid, outBuffer), success)
                                     << "Reading a inBuffer should succeed.";
 
+        stream.str(std::string());
         stream.clear();
         rbfm.printRecord(recordDescriptor, outBuffer, stream);
         ASSERT_NO_FATAL_FAILURE(
@@ -50,12 +51,12 @@ namespace PeterDBTesting {
 
     TEST_F(RBFM_Test, insert_and_read_a_record_with_null) {
         // Functions tested
-        // 1. Create Record-Based File
-        // 2. Open Record-Based File
-        // 3. Insert Record - NULL
-        // 4. Read Record
-        // 5. Close Record-Based File
-        // 6. Destroy Record-Based File
+        // 1. Create record-Based File
+        // 2. Open record-Based File
+        // 3. Insert record - NULL
+        // 4. Read record
+        // 5. Close record-Based File
+        // 6. Destroy record-Based File
 
         PeterDB::RID rid;
         int recordSize = 0;
@@ -88,6 +89,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rid, outBuffer), success)
                                     << "Reading a record should succeed.";
 
+        stream.str(std::string());
         stream.clear();
         rbfm.printRecord(recordDescriptor, outBuffer, stream);
         ASSERT_NO_FATAL_FAILURE(
@@ -100,13 +102,13 @@ namespace PeterDBTesting {
 
     TEST_F(RBFM_Test, insert_and_read_multiple_records) {
         // Functions tested
-        // 1. Create Record-Based File
-        // 2. Open Record-Based File
+        // 1. Create record-Based File
+        // 2. Open record-Based File
         // 3. Insert Multiple Records
-        // 4. Reopen Record-Based File
+        // 4. Reopen record-Based File
         // 5. Read Multiple Records
-        // 6. Close Record-Based File
-        // 7. Destroy Record-Based File
+        // 6. Close record-Based File
+        // 7. Destroy record-Based File
 
         PeterDB::RID rid;
         inBuffer = malloc(1000);
@@ -130,7 +132,7 @@ namespace PeterDBTesting {
         // Insert 2000 records into file
         for (int i = 0; i < numRecords; i++) {
 
-            // Test insert Record
+            // Test insert record
             int size = 0;
             memset(inBuffer, 0, 1000);
             prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
@@ -169,13 +171,13 @@ namespace PeterDBTesting {
 
     TEST_F(RBFM_Test, insert_and_read_massive_records) {
         // Functions tested
-        // 1. Create Record-Based File
-        // 2. Open Record-Based File
+        // 1. Create record-Based File
+        // 2. Open record-Based File
         // 3. Insert Massive Records
-        // 4. Reopen Record-Based File
+        // 4. Reopen record-Based File
         // 5. Read Massive Records
-        // 6. Close Record-Based File
-        // 7. Destroy Record-Based File
+        // 6. Close record-Based File
+        // 7. Destroy record-Based File
         PeterDB::RID rid;
         inBuffer = malloc(1000);
         int numRecords = 10000;
@@ -198,7 +200,7 @@ namespace PeterDBTesting {
         // Insert 2000 records into file
         for (int i = 0; i < numRecords; i++) {
 
-            // Test insert Record
+            // Test insert record
             int size = 0;
             memset(inBuffer, 0, 1000);
             prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
