@@ -51,16 +51,15 @@ namespace PeterDB {
     } CompOp;
 
     class Record {
-    protected:
-        short attributeCount{};
-        unsigned short* fieldOffsets{};
-        unsigned char* values{};
-
     public:
+        short attributeCount;
+        short* fieldOffsets;
+        unsigned char* values;
+
         RID rid{};
         Record();
 
-        Record(RID id, short countOfAttributes, unsigned short* fieldOffsets, unsigned char* values);
+        Record(RID id, short countOfAttributes, short* fieldOffsets, unsigned char* values);
 
         unsigned char* toBytes(u_short recordLength);
         static Record fromBytes(unsigned char *);

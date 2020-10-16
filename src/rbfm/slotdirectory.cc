@@ -21,7 +21,6 @@ namespace PeterDB {
 
         // reduce free space by one slot size
         this->freeSpace = this->freeSpace - sizeof(Slot);
-        this->recordCount = this->recordCount + 1;
         return 0;
     }
 
