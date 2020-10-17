@@ -1,4 +1,5 @@
 #include "src/include/rbfm.h"
+#include <cstring>
 
 namespace PeterDB {
     Record::Record() = default;

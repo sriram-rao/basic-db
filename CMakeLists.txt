@@ -13,7 +13,6 @@ include(ExternalProject)
 
 ExternalProject_Add(googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG 1fb1bb23bb8418dc73a5a9a82bbed31dc610fec7
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
         )
 

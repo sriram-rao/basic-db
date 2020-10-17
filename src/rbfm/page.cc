@@ -1,15 +1,16 @@
 #include "src/include/rbfm.h"
+#include <cstring>
 
 using namespace std;
 
 namespace PeterDB {
     Page::Page() {
-        Slot* slots = (Slot*) malloc(sizeof(Slot));
         this->records = (unsigned char*) malloc(sizeof(unsigned char));
+        vector<Slot> slots;
         this->directory = SlotDirectory(PAGE_SIZE - sizeof(Slot) - sizeof(unsigned char), 0, slots);
     }
 
-    Page::Page(SlotDirectory directory, unsigned char* records) {
+    Page::Page(SlotDirectory &directory, unsigned char* records) {
         this->directory = directory;
         this->records = records;
     }

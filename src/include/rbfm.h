@@ -69,11 +69,11 @@ namespace PeterDB {
 
     class SlotDirectory {
     public:
-        Slot* slots;
+        vector<Slot> slots;
         unsigned short freeSpace;
         unsigned short recordCount;
         SlotDirectory();
-        SlotDirectory(short freeSpace, short recordCount, Slot* slots);
+        SlotDirectory(short freeSpace, short recordCount, vector<Slot> slots);
         virtual ~SlotDirectory();
 
         RC addSlot(unsigned short offset, unsigned short recordLength);
@@ -87,7 +87,7 @@ namespace PeterDB {
         unsigned char* records;
         RC addRecord(Record record, unsigned short recordLength);
         Page();
-        Page(SlotDirectory directory, unsigned char* records);
+        Page(SlotDirectory &directory, unsigned char* records);
         ~Page();
     };
 
