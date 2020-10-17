@@ -14,6 +14,7 @@
 - Show your record format design.
 
 We keep fixed sized slots for the number of fields (N) and the N offsets to the end of each field value  
+
 ![Record Structure](images/record_structure.png)
 
 - Describe how you store a null field.
@@ -34,6 +35,7 @@ Since we know the number of bytes per metadata field (offset or record size) and
 
 ### 3. Page Format
 - Show your page format design.
+
 ![Page Structure](images/page_and_slot.png)
 
  We keep a vector of records at the start of the page and the slot directory at the end.
@@ -61,6 +63,7 @@ The slot directory is similar to the design described in the lecture.
 Currently, in this manner I use 1 hidden page to store the read, write and append counters, and other private metadata like the number of data pages and a vector of page numbers to available free space (pageSpaceMap\[pageNumber\] will return the free space in that page).
 
 - Show your hidden page(s) format design if applicable
+
 ![Page Structure](images/hidden_page.png)
 
 Currently, we store the three unsigned int counters read, write and append page counters, and the number of data pages.
