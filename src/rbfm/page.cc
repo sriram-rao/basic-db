@@ -16,7 +16,7 @@ namespace PeterDB {
     }
 
     RC Page::addRecord(Record record, unsigned short recordLength) {
-        short dataSize = this->directory.recordCount == 0 ? (short)0 : PAGE_SIZE - this->directory.freeSpace - sizeof(short) * 2 - sizeof(Slot) * this->directory.recordCount;
+        short dataSize = this->directory.recordCount == 0 ? (short)0 : PAGE_SIZE - this->directory.freeSpace - sizeof(short) * 2 - sizeof(Slot) * this->directory.slots.size();
         unsigned char* newBytes = (unsigned char *) malloc(dataSize + recordLength);
         memcpy(newBytes, this->records, dataSize);
         memcpy(newBytes + dataSize, record.toBytes(recordLength), recordLength);
