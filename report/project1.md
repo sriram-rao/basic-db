@@ -79,6 +79,39 @@ I have started with using cstdio for file handling (i.e. fopen, fread, etc). I l
 
 To store varchar types, we read 4-byte length specifier to access the varchar value from the input bytes. I do not store these bytes on file: I only store the exact length of varchar data and use the offsets to appropriately signify the end of the field.
 
+##### Models defined:
+* Slot: record offset and record length (defined as a struct). 
+* Slot Directory: contains record count, free space, and a vector of slots
+* Record: contains field/attribute count, offsets to denote the end of each field, and bytes of data. 
+I do not store these as a set/combination of separate fields since this makes it easy to write to file. 
+To read an attribute, we would have to use the offsets to figure out the bytes to read from the data and memcpy accordingly.
+  * For read (while reading from page) and write (while writing to page), I define methods toBytes and fromBytes.
+* Page: slot directory and bytes to denote all the records. To read a particular record, we use the slot directory values to extract the necessary bytes and use Record::fromBytes.
+
+##### Paged File Manager:
+* Method to find a page with free space is described under page management. 
+* Other actions here like opening, writing, reading files are uncomplicated.
+
+##### Record Manager:
+
+* Print Record: the method here is as described in the comment in the provided header file (rbfm.h): to read the recordDescriptor for the field type and length. For varchar, the first 4 bytes store the length of the varchar. This is, then, used to read the characters in the provided data.
+
+* Insert Record: Involves three main actions
+  * Extract record details
+    * The null bitmap
+    * Extract record-related details - whether it is null, the length of data of each attribute we need to store on file, and the offsets.
+  * Make the record object using attribute count, offsets, and bytes of data.
+  * Write to page 
+    * Find an existing page to add this data. If one cannot be found, append a new page.
+    * The page ID and slot ID can be decided here - slot ID is the index of the new slot to be added to the slot directory. I will revisit this if needed to handle deletions.
+    * Write the record to the page.
+  
+* Read Record: Here, we need to populate the data according to the convention decided.
+  * Read the page based on the passed rid.pageNum.
+  * Read the record based on the passed rid.slotNum to get its offset in the page and its length.
+  * Call Record::fromBytes to get a record object.
+  * Use the record's field offsets to form the null bitmap (-1 implies that attribute is null).
+  * Write the data bytes into the passed buffer (memcpy). For varchar, also prepend the data length.
 
 
 ### 6. Member contribution (for team of two)
