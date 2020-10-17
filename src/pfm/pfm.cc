@@ -125,10 +125,12 @@ namespace PeterDB {
             pageSpaceMap.insert(pageSpaceMap.begin(), dataPageCount, PAGE_SIZE);
             fread(pageSpaceMap.data(), sizeof(short), dataPageCount, file);
         }
+        this->readPageCounter++;
         return 0;
     }
 
     RC FileHandle::closeFile() {
+        writePageCounter++;
         persistCounters();
         return 0;
     }
