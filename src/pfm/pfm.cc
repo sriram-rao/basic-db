@@ -70,7 +70,7 @@ namespace PeterDB {
     }
 
     RC FileHandle::readPage(PageNum pageNum, void *data) {
-        if (getNumberOfPages() <= pageNum) return -1;
+        if (getNumberOfPages() < pageNum) return -1;
         char* bytes = (char*) malloc(PAGE_SIZE);
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
         fread(bytes, PAGE_SIZE, 1, file);
@@ -80,7 +80,7 @@ namespace PeterDB {
     }
 
     RC FileHandle::writePage(PageNum pageNum, const void *data) {
-        if (getNumberOfPages() <= pageNum) return -1;
+        if (getNumberOfPages() < pageNum) return -1;
         fseek(file, (long) (1 + pageNum) * PAGE_SIZE, SEEK_SET);
         fwrite(data, PAGE_SIZE, 1, file);
         this->writePageCounter++;
@@ -101,8 +101,8 @@ namespace PeterDB {
     }
 
     RC FileHandle::setPageSpace(PageNum num, short freeBytes) {
-        if (pageSpaceMap.size() < num)
-            pageSpaceMap.insert(pageSpaceMap.end(), num - pageSpaceMap.size(), PAGE_SIZE);
+        if (pageSpaceMap.size() < num + 1)
+            pageSpaceMap.insert(pageSpaceMap.end(), num + 1 - pageSpaceMap.size(), PAGE_SIZE);
         this->pageSpaceMap[num] = freeBytes;
     }
 

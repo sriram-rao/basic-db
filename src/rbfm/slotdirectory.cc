@@ -11,17 +11,17 @@ namespace PeterDB {
 
     SlotDirectory::~SlotDirectory() = default;
 
-    RC SlotDirectory::addSlot(unsigned short offset, unsigned short recordLength) {
+    RC SlotDirectory::addSlot(short offset, short recordLength) {
         this->slots.push_back({ offset, recordLength });
         this->freeSpace = this->freeSpace  - sizeof(Slot);
         return 0;
     }
 
-    unsigned short SlotDirectory::getRecordLength(unsigned short slotNum) const {
+    short SlotDirectory::getRecordLength(short slotNum) const {
         return slots[slotNum].length;
     }
 
-    unsigned short SlotDirectory::getRecordOffset(unsigned short slotNum) const {
+    short SlotDirectory::getRecordOffset(short slotNum) const {
         return slots[slotNum].offset;
     }
 }

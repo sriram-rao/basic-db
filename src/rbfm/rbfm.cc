@@ -90,12 +90,13 @@ namespace PeterDB {
         Record r = Record(rid, recordDescriptor.size(), offsets, fieldData);
 
         // Find the right page
-        unsigned short num = fileHandle.dataPageCount, slotNum = 0, pageDataSize = 0;
+        unsigned num = fileHandle.dataPageCount, pageDataSize = 0;
+        unsigned short slotNum = 0;
         short pageNum = fileHandle.findFreePage(recordLength + sizeof(offsets) + sizeof(short) + sizeof(Slot));
-        Page p = pageNum >= 0 ? readPage(num, fileHandle) : Page();
+        Page p = pageNum >= 0 ? readPage(pageNum, fileHandle) : Page();
         if (pageNum >= 0) {
             num = (unsigned short) pageNum;
-            slotNum = p.directory.recordCount;
+            slotNum = static_cast<unsigned short>(p.directory.recordCount);
             for (unsigned short i = 0; i < p.directory.recordCount; ++i)
                 pageDataSize += p.directory.getRecordLength(i);
         }
@@ -113,7 +114,7 @@ namespace PeterDB {
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                           const RID &rid, void *data) {
         Page page = readPage(rid.pageNum, fileHandle);
-        unsigned short recordOffset = page.directory.slots[rid.slotNum].offset,
+        short recordOffset = page.directory.slots[rid.slotNum].offset,
             recordLength = page.directory.slots[rid.slotNum].length;
         unsigned char* recordData = (unsigned char*) malloc(recordLength);
         memcpy(recordData, page.records + recordOffset, recordLength);
@@ -232,7 +233,8 @@ namespace PeterDB {
         file.readPage(pageNum, pageData);
 
         // Read slot directory
-        short recordCount, freeBytes;
+        short recordCount;
+        short freeBytes;
         memcpy(&recordCount, pageData + PAGE_SIZE - sizeof(short), sizeof(short));
         memcpy(&freeBytes, pageData + PAGE_SIZE - sizeof(short) * 2, sizeof(short));
         size_t slotSize = sizeof(Slot) * recordCount;
@@ -254,7 +256,7 @@ namespace PeterDB {
         short slotsSize = sizeof(Slot) * page.directory.slots.size();
         unsigned short recordsSize = 0;
         for (short i = 0; i < page.directory.recordCount; ++i)
-            recordsSize = page.directory.getRecordLength(i);
+            recordsSize += page.directory.getRecordLength(i);
 
         memcpy(pageData, page.records, recordsSize);
         short freeBytes = PAGE_SIZE - recordsSize - sizeof(short) * 2 - slotsSize;

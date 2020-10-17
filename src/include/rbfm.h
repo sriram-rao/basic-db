@@ -27,8 +27,8 @@ namespace PeterDB {
 
     typedef struct {
         // slot data
-        unsigned short offset;
-        unsigned short length;
+        short offset;
+        short length;
     } Slot;
 
     typedef unsigned AttrLength;
@@ -70,15 +70,15 @@ namespace PeterDB {
     class SlotDirectory {
     public:
         vector<Slot> slots;
-        unsigned short freeSpace;
-        unsigned short recordCount;
+        short freeSpace;
+        short recordCount;
         SlotDirectory();
         SlotDirectory(short freeSpace, short recordCount, vector<Slot> slots);
         virtual ~SlotDirectory();
 
-        RC addSlot(unsigned short offset, unsigned short recordLength);
-        unsigned short getRecordLength(unsigned short slotNum) const;
-        unsigned short getRecordOffset(unsigned short slotNum) const;
+        RC addSlot(short offset, short recordLength);
+        short getRecordLength(short slotNum) const;
+        short getRecordOffset(short slotNum) const;
     };
 
     class Page {
