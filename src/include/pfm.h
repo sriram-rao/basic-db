@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <fstream>
 
 namespace PeterDB {
 
@@ -37,13 +38,13 @@ namespace PeterDB {
         unsigned readPageCounter;
         unsigned writePageCounter;
         unsigned appendPageCounter;
-        unsigned dataPageCount;
         std::vector<short> pageSpaceMap;
-        FILE* file;
+        std::fstream file;
 
         FileHandle();                                                       // Default constructor
         ~FileHandle();                                                      // Destructor
-        FileHandle(FILE* file);
+        explicit FileHandle(std::fstream&& file);
+        FileHandle& operator= (const FileHandle& other);
 
         RC readPage(PageNum pageNum, void *data);                           // Get a specific page
         RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
@@ -51,12 +52,13 @@ namespace PeterDB {
         unsigned getNumberOfPages();                                        // Get the number of pages in the file
         RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount,
                                 unsigned &appendPageCount);                 // Put current counter values into variables
-        RC openFile();
-        RC closeFile();
+        RC open();
+        RC close();
+        void setFile(std::fstream&& fileToSet);
         bool isOpen() const;
         RC setPageSpace(PageNum num, short freeBytes);
         static bool exists(const std::string &fileName);
-        static RC init(FILE* file);                                         // Initialize a new file with hidden pages
+        RC init();                                         // Initialize a new file with hidden pages
 
         short findFreePage(size_t i);
 

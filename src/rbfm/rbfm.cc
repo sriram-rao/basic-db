@@ -90,7 +90,7 @@ namespace PeterDB {
         Record r = Record(rid, recordDescriptor.size(), offsets, fieldData);
 
         // Find the right page
-        unsigned num = fileHandle.dataPageCount, pageDataSize = 0;
+        unsigned num = fileHandle.getNumberOfPages(), pageDataSize = 0;
         unsigned short slotNum = 0;
         short pageNum = fileHandle.findFreePage(recordLength + sizeof(offsets) + sizeof(short) + sizeof(Slot));
         Page p = pageNum >= 0 ? readPage(pageNum, fileHandle) : Page();
@@ -253,7 +253,7 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend) {
         char* pageData = (char*) malloc(PAGE_SIZE);
-        short slotsSize = sizeof(Slot) * page.directory.slots.size();
+        long slotsSize = static_cast<int>(sizeof(Slot)) * page.directory.slots.size();
         unsigned short recordsSize = 0;
         for (short i = 0; i < page.directory.recordCount; ++i)
             recordsSize += page.directory.getRecordLength(i);
