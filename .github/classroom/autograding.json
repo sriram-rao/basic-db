@@ -149,6 +149,226 @@
       "comparison": "included",
       "timeout": 2,
       "points": null
+    },
+    {
+      "name": "RBFM_Test.delete_records",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Test.delete_records",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RBFM_Test.update_records",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Test.update_records",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Catalog_Test.create_and_delete_tables",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Catalog_Test.create_and_delete_tables",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Tuple_Test.get_attributes",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Tuple_Test.get_attributes",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Tuple_Test.insert_and_read_tuple",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Tuple_Test.insert_and_read_tuple",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Tuple_Test.insert_and_delete_and_read_tuple",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Tuple_Test.insert_and_delete_and_read_tuple",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Tuple_Test.insert_and_update_and_read_tuple",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Tuple_Test.insert_and_update_and_read_tuple",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Tuple_Test.read_attribute",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Tuple_Test.read_attribute",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Tuple_Test.delete_table",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Tuple_Test.delete_table",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Scan_Test.simple_scan",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Scan_Test.simple_scan",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Scan_Test.simple_scan_after_table_deletion",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Scan_Test.simple_scan_after_table_deletion",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Large_Table_Test.insert_large_tuples",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Large_Table_Test.insert_large_tuples",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    },
+    {
+      "name": "RM_Large_Table_Test.read_large_tuples",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Large_Table_Test.read_large_tuples ",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    },
+    {
+      "name": "RM_Large_Table_Test.update_and_read_large_tuples",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Large_Table_Test.update_and_read_large_tuples",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    },
+    {
+      "name": "RM_Large_Table_Test.delete_and_read_large_tuples",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Large_Table_Test.delete_and_read_large_tuples",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    },
+    {
+      "name": "RM_Large_Table_Test.scan_large_tuples",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Large_Table_Test.scan_large_tuples",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 5,
+      "points": null
+    },
+    {
+      "name": "RM_Scan_Test.conditional_scan",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Scan_Test.conditional_scan ",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 5,
+      "points": null
+    },
+    {
+      "name": "RM_Scan_Test.conditional_scan_with_null",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Scan_Test.conditional_scan_with_null",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 5,
+      "points": null
+    },
+    {
+      "name": "RM_Catalog_Scan_Test.catalog_tables_table_check",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Catalog_Scan_Test.catalog_tables_table_check",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Catalog_Scan_Test.catalog_columns_table_check",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Catalog_Scan_Test.catalog_columns_table_check",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Version_Test.read_after_drop_attribute",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Version_Test.read_after_drop_attribute",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "RM_Version_Test.read_after_add_attribute",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RM_Version_Test.read_after_add_attribute",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
     }
   ]
 }
