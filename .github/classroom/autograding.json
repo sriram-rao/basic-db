@@ -2,153 +2,313 @@
   "tests": [
     {
       "name": "PFM_File_Test.create_file",
-      "setup": "mkdir -p cmake-build-debug; cd cmake-build-debug; cmake ../ && cmake --build . -j 9",
-      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.create_file",
+      "setup": "mkdir -p cmake-build-debug; cd cmake-build-debug; cmake ../ && CTEST_OUTPUT_ON_FAILURE=1 cmake --build . -j 9",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_File_Test.create_file",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 3
     },
     {
       "name": "PFM_File_Test.create_existing_file",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.create_existing_file",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_File_Test.create_existing_file",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 1
     },
     {
       "name": "PFM_File_Test.destroy_file",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.destroy_file",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_File_Test.destroy_file",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 3
     },
     {
       "name": "PFM_File_Test.destroy_nonexistent_file",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.destroy_nonexistent_file",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_File_Test.destroy_nonexistent_file",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 1
     },
     {
       "name": "PFM_File_Test.open_and_close_file",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_File_Test.open_and_close_file",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_File_Test.open_and_close_file",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 3
     },
     {
       "name": "PFM_Page_Test.get_page_numbers",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.get_page_numbers",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Page_Test.get_page_numbers",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 3
     },
     {
       "name": "PFM_Page_Test.read_nonexistent_page",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.read_nonexistent_page",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Page_Test.read_nonexistent_page",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 2
     },
     {
       "name": "PFM_Page_Test.append_and_read_pages",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.append_and_read_pages",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Page_Test.append_and_read_pages",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 3
     },
     {
       "name": "PFM_Page_Test.write_nonexistent_page",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.write_nonexistent_page",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Page_Test.write_nonexistent_page",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 2
     },
     {
       "name": "PFM_Page_Test.write_and_read_pages",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.write_and_read_pages",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Page_Test.write_and_read_pages",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 3
     },
     {
       "name": "PFM_Page_Test.append_and_write_and_read_pages",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R PFM_Page_Test.append_and_write_and_read_pages",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Page_Test.append_and_write_and_read_pages",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 5
     },
     {
       "name": "RBFM_Test.insert_and_read_a_record",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R RBFM_Test.insert_and_read_a_record",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Test.insert_and_read_a_record",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 5
     },
     {
       "name": "RBFM_Test.insert_and_read_a_record_with_null",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R RBFM_Test.insert_and_read_a_record",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Test.insert_and_read_a_record",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 1,
-      "points": null
+      "points": 5
     },
     {
       "name": "RBFM_Test.insert_and_read_multiple_records",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R RBFM_Test.insert_and_read_multiple_records",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Test.insert_and_read_multiple_records",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 2,
-      "points": null
+      "points": 5
     },
     {
       "name": "RBFM_Test.insert_and_read_massive_records",
       "setup": "",
-      "run": "cd cmake-build-debug && ctest . -R RBFM_Test.insert_and_read_massive_records",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Test.insert_and_read_massive_records",
       "input": "",
       "output": "",
       "comparison": "included",
       "timeout": 2,
-      "points": null
+      "points": 6
+    },
+    {
+      "name": "PFM_Private_Test.check_page_num_after_appending",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Private_Test.check_page_num_after_appending",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 0.5
+    },
+    {
+      "name": "PFM_Private_Test.check_page_num_after_writing",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Private_Test.check_page_num_after_writing",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 0.5
+    },
+    {
+      "name": "PFM_Private_Test.check_page_num_after_reading",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Private_Test.check_page_num_after_reading",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 0.5
+    },
+    {
+      "name": "PFM_Private_Test.check_counters",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R PFM_Private_Test.check_counters",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 1
+    },
+    {
+      "name": "RBFM_Private_Test.varchar_compact_size",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.varchar_compact_size",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 2
+    },
+    {
+      "name": "RBFM_Private_Test.insert_records_with_empty_and_null_varchar",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.insert_records_with_empty_and_null_varchar",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 2
+    },
+    {
+      "name": "RBFM_Private_Test.insert_records_with_all_nulls",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.insert_records_with_all_nulls",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 2.5
+    },
+    {
+      "name": "RBFM_Private_Test.read_records_with_all_nulls",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.read_records_with_all_nulls",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 2.5
+    },
+    {
+      "name": "RBFM_Private_Test.insert_records_with_selected_nulls",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.insert_records_with_selected_nulls",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 2.5
+    },
+    {
+      "name": "RBFM_Private_Test.read_records_with_selected_nulls",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.read_records_with_selected_nulls",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 2.5
+    },
+    {
+      "name": "RBFM_Private_Test.insert_large_records",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.insert_large_records",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": 2
+    },
+    {
+      "name": "RBFM_Private_Test.read_large_records",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.read_large_records",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": 2
+    },
+    {
+      "name": "RBFM_Private_Test.insert_to_trigger_fill_lookup_and_append",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.insert_to_trigger_fill_lookup_and_append",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": 2
+    },
+    {
+      "name": "RBFM_Private_Test.insert_massive_records",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.insert_massive_records",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 20,
+      "points": 3
+    },
+    {
+      "name": "RBFM_Private_Test.read_massive_records",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.read_massive_records",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": 3
+    },
+    {
+      "name": "RBFM_Private_Test.measure_time_complexity",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R RBFM_Private_Test.measure_time_complexity",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": 1.5
     }
   ]
 }
