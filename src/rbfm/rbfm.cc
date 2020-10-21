@@ -46,7 +46,7 @@ namespace PeterDB {
         short nullBytes = ceil(((float)recordDescriptor.size()) / 8);
         int fieldInfo[recordDescriptor.size()];
 
-        u_short recordLength = sizeof(short) + sizeof(short) * recordDescriptor.size(); // space for fieldCount 'n' and n offsets
+        short recordLength = sizeof(short) + sizeof(short) * recordDescriptor.size(); // space for fieldCount 'n' and n offsets
         short dataOffset = sizeof(short) * (recordDescriptor.size() + 1);
         short offsets[recordDescriptor.size()];
         int currentOffset = nullBytes;
@@ -90,7 +90,7 @@ namespace PeterDB {
         Record r = Record(rid, recordDescriptor.size(), offsets, fieldData);
 
         // Find the right page
-        unsigned num = fileHandle.dataPageCount, pageDataSize = 0;
+        unsigned num = fileHandle.getNumberOfPages(), pageDataSize = 0;
         unsigned short slotNum = 0;
         short pageNum = fileHandle.findFreePage(recordLength + sizeof(offsets) + sizeof(short) + sizeof(Slot));
         Page p = pageNum >= 0 ? readPage(pageNum, fileHandle) : Page();
@@ -124,8 +124,7 @@ namespace PeterDB {
         // Null bitmap
         int nullBytes = ceil((float)record.attributeCount / 8);
         char nullBitMap [nullBytes];
-        for (int i = 0; i < nullBytes; ++i)
-            nullBitMap[i] = 0;
+        std::memset(nullBitMap, 0, nullBytes);
         for (int i = 0; i < recordDescriptor.size(); ++i) {
             if (record.fieldOffsets[i] == -1)
                 nullBitMap[i / 8] = nullBitMap[i / 8] | (1 << (7 - i % 8));
@@ -134,19 +133,25 @@ namespace PeterDB {
         memcpy(data, nullBitMap, nullBytes);
         int currentOffset = nullBytes;
         int sourceOffset = 0;
+        int nonNullIndex = -1;
         // Add back varchar length
         for (int i = 0; i < recordDescriptor.size(); ++i) {
+            if (record.fieldOffsets[i] == -1)
+                continue; // NULL
             int fieldSize = recordDescriptor[i].length;
             if (recordDescriptor[i].type == TypeVarChar) {
                 // Get the size of the varchar and append
-                int startIndex = i == 0 ? sizeof(short) * (recordDescriptor.size() + 1) : record.fieldOffsets[i - 1];
-                fieldSize = record.fieldOffsets[i] - startIndex;
+                int startIndex = nonNullIndex == -1 ? sizeof(short) * (recordDescriptor.size() + 1) : record.fieldOffsets[nonNullIndex];
+                fieldSize = record.fieldOffsets[i] == -1 ? 0 : record.fieldOffsets[i] - startIndex;
                 memcpy((char*) data + currentOffset, &fieldSize, 4);
                 currentOffset += 4;
             }
+            if (fieldSize == 0)
+                continue;
             memcpy((char*)data + currentOffset, record.values + sourceOffset, fieldSize);
             currentOffset += fieldSize;
             sourceOffset += fieldSize;
+            nonNullIndex = i;
         }
 
         return 0;
@@ -253,7 +258,7 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend) {
         char* pageData = (char*) malloc(PAGE_SIZE);
-        short slotsSize = sizeof(Slot) * page.directory.slots.size();
+        long slotsSize = static_cast<int>(sizeof(Slot)) * page.directory.slots.size();
         unsigned short recordsSize = 0;
         for (short i = 0; i < page.directory.recordCount; ++i)
             recordsSize += page.directory.getRecordLength(i);
