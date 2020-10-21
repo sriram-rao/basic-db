@@ -8,9 +8,9 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
-
+#include <unordered_map>
 #include "pfm.h"
-#include <vector>
+
 using namespace std;
 
 namespace PeterDB {
@@ -50,6 +50,8 @@ namespace PeterDB {
         NO_OP       // no condition
     } CompOp;
 
+    typedef string (*copy)(const void*, int&, int);
+
     class Record {
     public:
         short attributeCount;
@@ -62,6 +64,7 @@ namespace PeterDB {
         Record(RID id, short countOfAttributes, short* fieldOffsets, unsigned char* values);
 
         unsigned char* toBytes(u_short recordLength);
+        void populateMetadata(unsigned char *);
         static Record fromBytes(unsigned char *);
 
         virtual ~Record();
@@ -115,9 +118,9 @@ namespace PeterDB {
         // Never keep the results in the memory. When getNextRecord() is called,
         // a satisfying record needs to be fetched from the file.
         // "data" follows the same format as RecordBasedFileManager::insertRecord().
-        RC getNextRecord(RID &rid, void *data) { return RBFM_EOF; };
+        RC getNextRecord(RID &rid, void *data);
 
-        RC close() { return -1; };
+        RC close();
     };
 
     class RecordBasedFileManager {
@@ -196,6 +199,12 @@ namespace PeterDB {
     private:
         static Page readPage(PageNum pageNum, FileHandle &file);
         static RC writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend);
+        static int copyAttribute(const void* data, void* destination, int& startOffset, int length);
+        static int copyAttribute(const void* data, void* destination, int& startOffset, int& destOffset, int length);
+        static string parseTypeInt(const void* data, int& startOffset, int length);
+        static string parseTypeReal(const void* data, int& startOffset, int length);
+        static string parseTypeVarchar(const void* data, int& startOffset, int length);
+        static const unordered_map<int, copy> parserMap;
     };
 
 } // namespace PeterDB

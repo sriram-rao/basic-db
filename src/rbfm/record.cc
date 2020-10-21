@@ -12,19 +12,25 @@ namespace PeterDB {
     }
 
     Record Record::fromBytes(unsigned char* bytes) {
-        short attributeCount;
-        memcpy(&attributeCount, bytes, sizeof(short));
-        short offsets[attributeCount];
-        memcpy(offsets, bytes + sizeof(short), sizeof(offsets));
-        unsigned long dataSize;
-        for (int i = attributeCount - 1; i >= 0; i--) {
-            if (offsets[i] == -1) continue;
-            dataSize = offsets[i] - sizeof(short) - sizeof(offsets);
+        Record r = Record();
+        r.populateMetadata(bytes);
+        unsigned long dataSize = 0;
+        int metadataSize = sizeof(short) + sizeof(short) * r.attributeCount;
+        for (int i = r.attributeCount - 1; i >= 0; i--) {
+            if (r.fieldOffsets[i] == -1) continue;
+            dataSize = r.fieldOffsets[i] - metadataSize;
             break;
         }
         unsigned char* data = (unsigned char*) malloc(dataSize);
-        memcpy(data, bytes + sizeof(short) + sizeof(offsets), dataSize);
-        return Record({0, 0}, attributeCount, offsets, data);
+        memcpy(data, bytes + metadataSize, dataSize);
+        r.values = data;
+        return r;
+    }
+
+    void Record::populateMetadata(unsigned char* bytes){
+        memcpy(&this->attributeCount, bytes, sizeof(short));
+        this->fieldOffsets = (short *) malloc(sizeof(short) * attributeCount);
+        memcpy(this->fieldOffsets, bytes + sizeof(short), sizeof(short) * attributeCount);
     }
 
     unsigned char* Record::toBytes(u_short recordLength) {

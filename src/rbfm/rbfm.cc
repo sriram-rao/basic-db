@@ -1,6 +1,7 @@
 #include "src/include/rbfm.h"
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <cstring>
 
 using namespace std;
@@ -10,6 +11,12 @@ namespace PeterDB {
         static RecordBasedFileManager _rbf_manager = RecordBasedFileManager();
         return _rbf_manager;
     }
+
+    const unordered_map<int, copy> RecordBasedFileManager::parserMap = {
+            { TypeInt, &parseTypeInt },
+            { TypeReal, &parseTypeReal },
+            { TypeVarChar, &parseTypeVarchar }
+    };
 
     RecordBasedFileManager::RecordBasedFileManager() = default;
 
@@ -114,10 +121,10 @@ namespace PeterDB {
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                           const RID &rid, void *data) {
         Page page = readPage(rid.pageNum, fileHandle);
-        short recordOffset = page.directory.slots[rid.slotNum].offset,
+        int recordOffset = page.directory.slots[rid.slotNum].offset,
             recordLength = page.directory.slots[rid.slotNum].length;
         unsigned char* recordData = (unsigned char*) malloc(recordLength);
-        memcpy(recordData, page.records + recordOffset, recordLength);
+        copyAttribute(page.records, recordData, reinterpret_cast<int &>(recordOffset), recordLength);
 
         Record record = Record::fromBytes(recordData);
 
@@ -148,9 +155,7 @@ namespace PeterDB {
             }
             if (fieldSize == 0)
                 continue;
-            memcpy((char*)data + currentOffset, record.values + sourceOffset, fieldSize);
-            currentOffset += fieldSize;
-            sourceOffset += fieldSize;
+            copyAttribute(record.values, data, sourceOffset, currentOffset, fieldSize);
             nonNullIndex = i;
         }
 
@@ -160,69 +165,51 @@ namespace PeterDB {
     RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
                                            std::ostream &out) {
         static_assert(sizeof(float) == 4, "");
-        int flagBitsCount = ceil(((float) recordDescriptor.size()) / 8);
-        std::vector<bool> nullFlagStatus;
-        int memoryPointerCounter = flagBitsCount;
-        unsigned short stringSizeOffsetMemSize = 4;
-
-        std::string records;
-        int tmpIntVal;
-        float tmpFloatVal;
+        int nullBytes = ceil(((float) recordDescriptor.size()) / 8);
+        int currentOffset = nullBytes;
 
         for(unsigned int i = 0; i < recordDescriptor.size(); ++i) {
-            if (((char*)data)[i / 8] & (1 << (7 - i % 8))) {
-                records.append(recordDescriptor[i].name);
-                records.append(": NULL");
-            } else {
-                if (recordDescriptor[i].type == TypeInt) {
-                    std::memcpy(&tmpIntVal, (char *) data + memoryPointerCounter, recordDescriptor[i].length);
-                    memoryPointerCounter = memoryPointerCounter + recordDescriptor[i].length;
-                    records.append(recordDescriptor[i].name);
-                    records.append(": ");
-                    records.append(std::to_string(tmpIntVal));
-                } else if (recordDescriptor[i].type == TypeReal) {
-                    std::memcpy(&tmpFloatVal, (char *) data + memoryPointerCounter, recordDescriptor[i].length);
-                    memoryPointerCounter = memoryPointerCounter + recordDescriptor[i].length;
-                    records.append(recordDescriptor[i].name);
-                    records.append(": ");
-                    std::ostringstream ss;
-                    ss << tmpFloatVal;
-                    records.append(ss.str());
-                } else if (recordDescriptor[i].type == TypeVarChar) {
-                    std::memcpy(&tmpIntVal, (char *) data + memoryPointerCounter, stringSizeOffsetMemSize);
-                    char *tmpStringVal = new char[tmpIntVal + 2];
-                    std::memcpy(tmpStringVal, (char *) data + memoryPointerCounter + stringSizeOffsetMemSize,
-                                tmpIntVal);
-                    tmpStringVal[tmpIntVal] = '\0';
-                    memoryPointerCounter = memoryPointerCounter + stringSizeOffsetMemSize + tmpIntVal;
-                    records.append(recordDescriptor[i].name);
-                    records.append(": ");
-                    records.append(tmpStringVal);
-                }
+            if (((char *) data)[i / 8] & (1 << (7 - i % 8))) {
+                out << recordDescriptor[i].name << ": NULL";
+                if (i < recordDescriptor.size() - 1)
+                    out << ", ";
+                continue;
             }
-            if (i != recordDescriptor.size() - 1) {
-                records.append(", ");
-            } else {
-                // TODO :: is this required?
-//                records.append("\n");
-            }
+            out << recordDescriptor[i].name << ": ";
+            out << parserMap.at(recordDescriptor[i].type)(data, currentOffset, recordDescriptor[i].length);
+
+            if (i < recordDescriptor.size() - 1)
+                out << ", ";
         }
-        out << records;
         return 0;
     }
 
     RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const RID &rid) {
+        // Go to page, slot
+        // If updated, go to new slot(s)
+        // Get record length (including offsets)
+        // Overwrite this record with records on the right (if any)
+        // Update deleted records slot information to -1 in all the slots referring to it
+        // Update offsets of any moved records
         return -1;
     }
 
     RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, const RID &rid) {
+        // Find change in record length
+        // If new record is smaller, update in place, shift records (like delete)
+        // If bigger
+        // 1. If current page can hold the space, shift records right and update slots (length of updated record and offset of existing)
+        // 2. If current page cannot hold, find a new page, insert record there, write the new RID in old place and shift other records left.
         return -1;
     }
 
     RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                              const RID &rid, const std::string &attributeName, void *data) {
+        // Get the index of the attribute in descriptor
+        // Fetch record and read corresponding index
+        // memcpy to data
         return -1;
     }
 
@@ -230,6 +217,8 @@ namespace PeterDB {
                                     const std::string &conditionAttribute, const CompOp compOp, const void *value,
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
+        // Create the scan iterator
+        // Populate state with condition and initial cursor (RID)
         return -1;
     }
 
@@ -272,6 +261,55 @@ namespace PeterDB {
         file.setPageSpace(pageNum, freeBytes);
 
         return writeSuccess;
+    }
+
+    int RecordBasedFileManager::copyAttribute(const void *data, void* destination, int& startOffset, int length) {
+        std::memcpy(destination, (char *) data + startOffset, length);
+        startOffset += length;
+        return startOffset;
+    }
+
+    int RecordBasedFileManager::copyAttribute(const void *data, void* destination, int& sourceOffset, int& destOffset, int length) {
+        std::memcpy((char*) destination + destOffset, (char *) data + sourceOffset, length);
+        sourceOffset += length;
+        destOffset += length;
+        return sourceOffset;
+    }
+
+    string RecordBasedFileManager::parseTypeInt(const void* data, int& startOffset, int length) {
+        int field;
+        copyAttribute(data, &field, startOffset, length);
+        return to_string(field);
+    }
+
+    string RecordBasedFileManager::parseTypeReal(const void* data, int& startOffset, int length) {
+        float field;
+        copyAttribute(data, &field, startOffset, length);
+        return to_string(field);
+    }
+
+    string RecordBasedFileManager::parseTypeVarchar(const void* data, int& startOffset, int length){
+        int fieldLength;
+        std::memcpy(&fieldLength, (char *) data + startOffset, 4);
+        startOffset += 4;
+        char field [fieldLength + 2];
+        copyAttribute(data, field, startOffset, fieldLength);
+        field[fieldLength] = '\0';
+        return field;
+    }
+
+    RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
+        // Increment RID:
+        // If current page has more records, increment slot until we get one present in this page (un-deleted and un-moved)
+        // If all records of page are done, increment page and go to slot 0
+        // readRecord
+        return RBFM_EOF;
+    }
+
+    RC RBFM_ScanIterator::close() {
+        // Get rid of state
+        // Close file? Probably not
+        return -1;
     }
 } // namespace PeterDB
 
