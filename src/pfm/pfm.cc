@@ -76,7 +76,7 @@ namespace PeterDB {
     RC FileHandle::readPage(PageNum pageNum, void *data) {
         if (getNumberOfPages() < pageNum) return -1;
         char* bytes = new char[PAGE_SIZE];
-        file.seekg((1 + pageNum) * PAGE_SIZE);
+        file.seekg((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE);
         file.read(bytes, PAGE_SIZE);
         std::memcpy(data, bytes, PAGE_SIZE);
         delete[] bytes;
@@ -86,7 +86,7 @@ namespace PeterDB {
 
     RC FileHandle::writePage(PageNum pageNum, const void *data) {
         if (getNumberOfPages() < pageNum) return -1;
-        file.seekp((1 + pageNum) * PAGE_SIZE, ios::beg);
+        file.seekp((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE, ios::beg);
         file.write(reinterpret_cast<char *>(const_cast<void *>(data)), PAGE_SIZE);
         writePageCounter++;
         return 0;
@@ -95,7 +95,7 @@ namespace PeterDB {
     RC FileHandle::appendPage(const void *data) {
         appendPageCounter++;
         pageSpaceMap.push_back(PAGE_SIZE);
-        file.seekp(getNumberOfPages() * PAGE_SIZE, ios::beg);
+        file.seekp((getNumberOfPages() + HIDDEN_PAGE_COUNT - 1) * PAGE_SIZE, ios::beg);
         file.write(reinterpret_cast<char *>(const_cast<void *>(data)), PAGE_SIZE);
         file.flush();
         return 0;
@@ -106,9 +106,8 @@ namespace PeterDB {
     }
 
     RC FileHandle::setPageSpace(PageNum num, short freeBytes) {
-        if (pageSpaceMap.size() < num + 1)
-            pageSpaceMap.insert(pageSpaceMap.end(), num + 1 - pageSpaceMap.size(), PAGE_SIZE);
         this->pageSpaceMap[num] = freeBytes;
+        persistCounters();
     }
 
     RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
@@ -127,6 +126,7 @@ namespace PeterDB {
         this->appendPageCounter = counters[2];
         unsigned dataPageCount = counters[3];
         if (dataPageCount > 0) {
+            pageSpaceMap.clear();
             pageSpaceMap.insert(pageSpaceMap.begin(), dataPageCount, PAGE_SIZE);
             file.read(reinterpret_cast<char *>(pageSpaceMap.data()), sizeof(short) * dataPageCount);
         }
@@ -141,7 +141,6 @@ namespace PeterDB {
     RC FileHandle::close() {
         if (!file.is_open())
             return 0;
-        writePageCounter++;
         persistCounters();
         file.close();
         return 0;
@@ -163,17 +162,20 @@ namespace PeterDB {
     }
 
     RC FileHandle::persistCounters(){
+        writePageCounter++;
         file.seekp(0);
         unsigned counters[4] = { readPageCounter, writePageCounter, appendPageCounter, static_cast<unsigned>(pageSpaceMap.size()) };
         file.write(reinterpret_cast<char *>(counters), sizeof(counters));
         file.write(reinterpret_cast<char *>(pageSpaceMap.data()), sizeof(short) * pageSpaceMap.size());  //TODO: Handle when map becomes too big for one page
-        int spaceToReserve = PAGE_SIZE - sizeof(counters) - sizeof(short) * pageSpaceMap.size();
+        int spaceToReserve = PAGE_SIZE * HIDDEN_PAGE_COUNT - sizeof(counters) - sizeof(short) * pageSpaceMap.size();
         char* junk = new char[spaceToReserve];
         file.write(junk, spaceToReserve);
+        file.flush();
         return 0;
     }
 
-    int16_t FileHandle::findFreePage(size_t bytesToStore) {
+    int16_t FileHandle::findFreePage(short bytesToStore) {
+        open();
         for (int i = (int) getNumberOfPages() - 1; i >= 0 ; --i){
             if (pageSpaceMap[i] > bytesToStore)
                 return static_cast<int16_t>(i);

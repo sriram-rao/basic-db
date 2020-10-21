@@ -436,7 +436,7 @@ namespace PeterDBTesting {
 
         // Get the initial number of pages in the file.
         // If the file size is bigger than number of pages, we assume there are hidden pages.
-        bool hiddenPageExists = fileHandle.getNumberOfPages() < getFileSize(fileName) % PAGE_SIZE;
+        bool hiddenPageExists = fileHandle.getNumberOfPages() < getFileSize(fileName) / PAGE_SIZE;
 
         PeterDB::RID rid;
         size_t recordSize = 0;

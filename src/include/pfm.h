@@ -2,6 +2,7 @@
 #define _pfm_h_
 
 #define PAGE_SIZE 4096
+#define HIDDEN_PAGE_COUNT 10
 
 #include <string>
 #include <unordered_map>
@@ -60,7 +61,7 @@ namespace PeterDB {
         static bool exists(const std::string &fileName);
         RC init();                                         // Initialize a new file with hidden pages
 
-        short findFreePage(size_t i);
+        short findFreePage(short space);
 
     private:
         RC persistCounters();
