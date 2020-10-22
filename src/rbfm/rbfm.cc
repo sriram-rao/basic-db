@@ -355,8 +355,10 @@ namespace PeterDB {
 
     RC RBFM_ScanIterator::close() {
         // Get rid of state
-        // Close file? Probably not
-        return -1;
+        recordDescriptor.clear();
+        conditionAttribute.clear();
+        attributeNames.clear();
+        return 0;
     }
 } // namespace PeterDB
 
