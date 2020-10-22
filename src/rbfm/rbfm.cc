@@ -13,9 +13,9 @@ namespace PeterDB {
     }
 
     const unordered_map<int, copy> RecordBasedFileManager::parserMap = {
-            { TypeInt, &parseTypeInt },
-            { TypeReal, &parseTypeReal },
-            { TypeVarChar, &parseTypeVarchar }
+        { TypeInt, &parseTypeInt },
+        { TypeReal, &parseTypeReal },
+        { TypeVarChar, &parseTypeVarchar }
     };
 
     RecordBasedFileManager::RecordBasedFileManager() = default;
@@ -97,21 +97,24 @@ namespace PeterDB {
         Record r = Record(rid, recordDescriptor.size(), offsets, fieldData);
 
         // Find the right page
-        unsigned num = fileHandle.getNumberOfPages(), pageDataSize = 0;
+        unsigned num = fileHandle.getNumberOfPages(); short pageDataSize = 0;
         unsigned short slotNum = 0;
         short pageNum = fileHandle.findFreePage(recordLength + sizeof(offsets) + sizeof(short) + sizeof(Slot));
         Page p = pageNum >= 0 ? readPage(pageNum, fileHandle) : Page();
         if (pageNum >= 0) {
             num = (unsigned short) pageNum;
-            slotNum = static_cast<unsigned short>(p.directory.recordCount);
-            for (unsigned short i = 0; i < p.directory.recordCount; ++i)
+            slotNum = p.getFreeSlot();
+            for (short i = 0; i < p.directory.recordCount; ++i)
                 pageDataSize += p.directory.getRecordLength(i);
         }
         rid.pageNum = num;
         rid.slotNum = slotNum;
 
-        p.directory.addSlot(pageDataSize, recordLength);
-        p.addRecord(r, recordLength);
+        slotNum < p.directory.slots.size() ?
+            p.directory.setSlot(slotNum, recordLength) :
+            p.directory.addSlot(slotNum, pageDataSize, recordLength);
+
+        p.addRecord(slotNum, r, recordLength);
 
         // Write to file
         writePage(num, p, fileHandle, pageNum == -1);
@@ -120,12 +123,16 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                           const RID &rid, void *data) {
-        Page page = readPage(rid.pageNum, fileHandle);
-        int recordOffset = page.directory.slots[rid.slotNum].offset,
-            recordLength = page.directory.slots[rid.slotNum].length;
+        RID trueId = rid;
+        Page page = findRecord(trueId, fileHandle);
+
+        if (!page.checkValid())
+            return -1; // Was deleted, return error
+
+        int recordOffset = page.directory.slots[trueId.slotNum].offset,
+            recordLength = page.directory.slots[trueId.slotNum].length;
         unsigned char* recordData = (unsigned char*) malloc(recordLength);
         copyAttribute(page.records, recordData, reinterpret_cast<int &>(recordOffset), recordLength);
-
         Record record = Record::fromBytes(recordData);
 
         // Null bitmap
@@ -186,13 +193,12 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const RID &rid) {
-        // Go to page, slot
-        // If updated, go to new slot(s)
-        // Get record length (including offsets)
-        // Overwrite this record with records on the right (if any)
-        // Update deleted records slot information to -1 in all the slots referring to it
-        // Update offsets of any moved records
-        return -1;
+        RID trueId = rid;
+        Page page = findRecord(trueId, fileHandle);
+        if (!page.checkValid()) // Already deleted
+            return 0;
+        page.deleteRecord(trueId.slotNum);
+        return writePage(trueId.pageNum, page, fileHandle, false);
     }
 
     RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -207,19 +213,34 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                              const RID &rid, const std::string &attributeName, void *data) {
-        // Get the index of the attribute in descriptor
-        // Fetch record and read corresponding index
-        // memcpy to data
-        return -1;
+        RID trueId = rid;
+        Page page = findRecord(trueId, fileHandle);
+        if (!page.checkValid()) // Deleted
+            return -1;
+
+        Record record = page.getRecord(trueId.slotNum);
+        if (record.absent())
+            return -1;
+
+        // Get the index of the attribute from descriptor
+        int attributeIndex = 0;
+        for (int i = 0; i < recordDescriptor.size(); ++i){
+            if (attributeName == recordDescriptor[i].name) {
+                attributeIndex = i;
+                break;
+            }
+        }
+
+        record.readAttribute(attributeIndex, data);
+        return 0;
     }
 
     RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                     const std::string &conditionAttribute, const CompOp compOp, const void *value,
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
-        // Create the scan iterator
-        // Populate state with condition and initial cursor (RID)
-        return -1;
+        rbfm_ScanIterator = RBFM_ScanIterator(recordDescriptor, conditionAttribute, compOp, const_cast<void *>(value), attributeNames);
+        return 0;
     }
 
     Page RecordBasedFileManager::readPage(PageNum pageNum, FileHandle &file) {
@@ -263,6 +284,22 @@ namespace PeterDB {
         return writeSuccess;
     }
 
+    Page RecordBasedFileManager::findRecord(RID& rid, FileHandle& fileHandle) {
+        Page page = readPage(rid.pageNum, fileHandle);
+        if (page.checkRecordDeleted(rid.slotNum))
+            return Page();
+        Record record = page.getRecord(rid.slotNum);
+
+        while (record.absent()) {
+            rid = record.getNewRid();
+            page = readPage(rid.pageNum, fileHandle);
+            if (page.checkRecordDeleted(rid.slotNum))
+                return Page();
+            record = page.getRecord(rid.slotNum);
+        }
+        return page;
+    }
+
     int RecordBasedFileManager::copyAttribute(const void *data, void* destination, int& startOffset, int length) {
         std::memcpy(destination, (char *) data + startOffset, length);
         startOffset += length;
@@ -296,6 +333,16 @@ namespace PeterDB {
         copyAttribute(data, field, startOffset, fieldLength);
         field[fieldLength] = '\0';
         return field;
+    }
+
+    RBFM_ScanIterator::RBFM_ScanIterator(std::vector<Attribute> recordDescriptor, std::string conditionAttribute,
+                                         CompOp compOp, void *value, std::vector<std::string> attributeNames) {
+        this->recordDescriptor = recordDescriptor;
+        this->conditionAttribute = conditionAttribute;
+        this->compOp = compOp;
+        this->value = value;
+        this->attributeNames = attributeNames;
+        this->currentRecord = { 0, 0 };
     }
 
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {

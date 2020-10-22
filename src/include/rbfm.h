@@ -63,9 +63,14 @@ namespace PeterDB {
 
         Record(RID id, short countOfAttributes, short* fieldOffsets, unsigned char* values);
 
+        void readAttribute(int index, void* data);
+
         unsigned char* toBytes(u_short recordLength);
-        void populateMetadata(unsigned char *);
         static Record fromBytes(unsigned char *);
+        void populateMetadata(unsigned char *);
+        void populateData(unsigned char *);
+        bool absent() const;                                // tells us whether this record's bytes have data
+        RID getNewRid() const;                               // fetches the new RID if this record has been moved
 
         virtual ~Record();
     };
@@ -79,7 +84,8 @@ namespace PeterDB {
         SlotDirectory(short freeSpace, short recordCount, vector<Slot> slots);
         virtual ~SlotDirectory();
 
-        RC addSlot(short offset, short recordLength);
+        RC addSlot(unsigned short slotNum, short offset, short recordLength);
+        RC setSlot(unsigned short slotNum, short recordLength);
         short getRecordLength(short slotNum) const;
         short getRecordOffset(short slotNum) const;
     };
@@ -88,10 +94,20 @@ namespace PeterDB {
     public:
         SlotDirectory directory;
         unsigned char* records;
-        RC addRecord(Record record, unsigned short recordLength);
+        RC addRecord(unsigned short slotNum, Record record, unsigned short recordLength);
+        RC deleteRecord(unsigned short slotNum);
+        bool checkValid();
+        bool checkRecordDeleted(unsigned short slotNum);
+        Record getRecord(unsigned short slotNum);
+        unsigned short getFreeSlot();
+
         Page();
         Page(SlotDirectory &directory, unsigned char* records);
         ~Page();
+
+    private:
+        void moveRecords(int moveStartOffset, int destinationOffset, int length);
+        int getDataRecordCount();
     };
 
     /********************************************************************
@@ -115,12 +131,25 @@ namespace PeterDB {
 
         ~RBFM_ScanIterator() = default;;
 
+        RBFM_ScanIterator(std::vector<Attribute> recordDescriptor,
+                          std::string conditionAttribute,
+                          CompOp compOp,                  // comparison type such as "<" and "="
+                          void *value,                    // used in the comparison
+                          std::vector<std::string> attributeNames); // a list of projected attributes
         // Never keep the results in the memory. When getNextRecord() is called,
         // a satisfying record needs to be fetched from the file.
         // "data" follows the same format as RecordBasedFileManager::insertRecord().
         RC getNextRecord(RID &rid, void *data);
 
         RC close();
+
+    private:
+        RID currentRecord;
+        std::vector<Attribute> recordDescriptor;
+        std::string conditionAttribute;
+        CompOp compOp;                  // comparison type such as "<" and "="
+        void *value;                    // used in the comparison
+        vector<string> attributeNames; // a list of projected attributes
     };
 
     class RecordBasedFileManager {
@@ -205,6 +234,7 @@ namespace PeterDB {
         static string parseTypeReal(const void* data, int& startOffset, int length);
         static string parseTypeVarchar(const void* data, int& startOffset, int length);
         static const unordered_map<int, copy> parserMap;
+        static Page findRecord(RID& rid, FileHandle& fileHandle);
     };
 
 } // namespace PeterDB

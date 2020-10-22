@@ -15,16 +15,107 @@ namespace PeterDB {
         this->records = records;
     }
 
-    RC Page::addRecord(Record record, unsigned short recordLength) {
-        short dataSize = this->directory.recordCount == 0 ? (short)0 : PAGE_SIZE - this->directory.freeSpace - sizeof(short) * 2 - sizeof(Slot) * this->directory.slots.size();
-        unsigned char* newBytes = (unsigned char *) malloc(dataSize + recordLength);
-        memcpy(newBytes, this->records, dataSize);
-        memcpy(newBytes + dataSize, record.toBytes(recordLength), recordLength);
+    RC Page::addRecord(unsigned short slotNum, Record record, unsigned short recordLength) {
+        short dataSize = getDataRecordCount() == 0 ? (short)0 : PAGE_SIZE - sizeof(short) * 2 - sizeof(Slot) * this->directory.slots.size();
+        unsigned char* newBytes = (unsigned char *) malloc(dataSize);
+
+        // To copy data to the left of the record
+        Slot leftSlot = directory.slots[slotNum - 1];
+        int copiedLength = 0;
+        for (int i = slotNum - 1; i >= 0; --i) {
+            if (this->directory.slots[i].length == -1) continue;
+            leftSlot = this->directory.slots[i];
+            break;
+        }
+        memcpy(newBytes, this->records, leftSlot.offset + leftSlot.length);
+        copiedLength += leftSlot.offset + leftSlot.length;
+        memcpy(newBytes + copiedLength, record.toBytes(recordLength), recordLength);
+        copiedLength += recordLength;
+
+        // To copy data after slot with addition
+        Slot rightSlot = directory.slots[slotNum - 1];
+        for (int i = directory.slots.size() - 1; i > slotNum + 1; --i) {
+            if (this->directory.slots[i].length == -1) continue;
+            rightSlot = this->directory.slots[i];
+            break;
+        }
+        memcpy(newBytes + copiedLength, records + leftSlot.offset + leftSlot.length,
+               rightSlot.offset + rightSlot.length - (leftSlot.offset + leftSlot.length));
+
         free(this->records);
         this->records = newBytes;
-        this->directory.recordCount++;
         this->directory.freeSpace = this->directory.freeSpace - recordLength;
         return 0;
+    }
+
+    RC Page::deleteRecord(unsigned short slotNum) {
+        // Get record length (including offsets)
+        Slot recordSlot = this->directory.slots[slotNum];
+
+        // Are there records to the right?
+        if (directory.recordCount > slotNum + 1) {
+            Slot lastSlot = directory.slots[directory.recordCount - 1];
+            for (int i = this->directory.recordCount - 1; i >= 0; i--) {
+                if (this->directory.slots[i].length == -1) continue;
+                lastSlot = this->directory.slots[i];
+                break;
+            }
+            int shiftDataSize = lastSlot.offset + lastSlot.length - (recordSlot.offset + recordSlot.length);
+            moveRecords(recordSlot.offset + recordSlot.length, recordSlot.offset, shiftDataSize);
+
+            // Update offsets of moved records
+            for (int i = slotNum + 1; i < directory.recordCount; ++i)
+                directory.slots[i].offset -= recordSlot.length;
+        }
+
+        // Update deleted records slot information to -1 in all the slots referring to it
+        this->directory.freeSpace += recordSlot.length;
+        this->directory.slots[slotNum].length = -1;
+        this->directory.slots[slotNum].offset = -1;
+
+        return 0;
+    }
+
+    Record Page::getRecord(unsigned short slotNum) {
+        if (checkRecordDeleted(slotNum))
+            return Record({ PAGE_SIZE * 2, PAGE_SIZE  *2 }, -1, NULL, NULL);
+
+        Slot recordSlot = this->directory.slots[slotNum];
+        unsigned char* recordData = (unsigned char*) malloc(recordSlot.length);
+        memcpy(recordData, records + recordSlot.offset, recordSlot.length);
+        return Record::fromBytes(recordData);
+    }
+
+    bool Page::checkRecordDeleted(unsigned short slotNum) {
+        return this->directory.slots[slotNum].length == -1;
+    }
+
+    unsigned short Page::getFreeSlot() {
+        unsigned short slotNum = 0;
+        for (; slotNum < this->directory.recordCount; ++slotNum) {
+            if (this->directory.slots[slotNum].length == -1)
+                return slotNum;
+        }
+        return slotNum;
+    }
+
+    void Page::moveRecords(int moveStartOffset, int destinationOffset, int length) {
+        char *dataToShift = (char *) malloc(length);
+        std::memcpy(dataToShift, this->records + moveStartOffset, length);
+        std::memcpy(this->records + destinationOffset, dataToShift, length);
+        free(dataToShift);
+    }
+
+    int Page::getDataRecordCount() {
+        int count = 0;
+        for (int i = 0; i < directory.recordCount; ++i)
+            if (directory.slots[i].length != -1)
+                count++;
+        return count;
+    }
+
+    bool Page::checkValid() {
+        return !this->directory.recordCount == 0;
     }
 
     Page::~Page() = default;
