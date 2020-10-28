@@ -48,76 +48,18 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, RID &rid) {
-        // Figure out record details
-        // Null map
-        short nullBytes = ceil(((float)recordDescriptor.size()) / 8);
         int fieldInfo[recordDescriptor.size()];
-
-        short recordLength = sizeof(short) + sizeof(short) * recordDescriptor.size(); // space for fieldCount 'n' and n offsets
-        short dataOffset = sizeof(short) * (recordDescriptor.size() + 1);
-        short offsets[recordDescriptor.size()];
-        int currentOffset = nullBytes;
-        for (short i = 0; i < recordDescriptor.size(); ++i) {
-            // check null
-            if (((char*)data)[i / 8] & (1 << (7 - i % 8))) {
-                offsets[i] = -1;
-                fieldInfo[i] = -1;
-                continue;
-            }
-
-            // get size for varchar
-            int fieldSize = recordDescriptor[i].type == TypeVarChar ? 0 : recordDescriptor[i].length;
-            if (recordDescriptor[i].type == TypeVarChar) {
-                int varcharSize = 0;
-                memcpy(&varcharSize, (char *) data + currentOffset, 4);
-                fieldSize = varcharSize;
-                currentOffset += 4;
-            }
-            recordLength += fieldSize;
-            fieldInfo[i] = fieldSize;
-            dataOffset += fieldSize;
-            offsets[i] = dataOffset;
-            currentOffset += fieldSize;
-        }
-
-        // Make the record
-        unsigned char* fieldData = (unsigned char*)malloc(recordLength);
-        currentOffset = nullBytes;
-        int copiedOffset = 0;
-        for(int i = 0; i < recordDescriptor.size(); i++) {
-            if (offsets[i] == -1) // skip nulls
-                continue;
-            if (recordDescriptor[i].type == TypeVarChar) { // handle length descriptor for varchar
-                currentOffset += 4;
-            }
-            memcpy(fieldData + copiedOffset, (char *) data + currentOffset, fieldInfo[i]);
-            currentOffset += fieldInfo[i];
-            copiedOffset += fieldInfo[i];
-        }
-        Record r = Record(rid, recordDescriptor.size(), offsets, fieldData);
-
+        short recordLength;
+        vector<short> offsets = vector<short>(recordDescriptor.size());
+        offsets.insert(offsets.begin(), 0);
+        getRecordProperties(recordDescriptor, data, recordLength, offsets, fieldInfo);
         // Find the right page
-        unsigned num = fileHandle.getNumberOfPages(); short pageDataSize = 0;
-        unsigned short slotNum = 0;
-        short pageNum = fileHandle.findFreePage(recordLength + sizeof(offsets) + sizeof(short) + sizeof(Slot));
-        Page p = pageNum >= 0 ? readPage(pageNum, fileHandle) : Page();
-        if (pageNum >= 0) {
-            num = (unsigned short) pageNum;
-            slotNum = p.getFreeSlot();
-            for (short i = 0; i < p.directory.recordCount; ++i)
-                pageDataSize += p.directory.getRecordLength(i);
-        }
-        rid.pageNum = num;
-        rid.slotNum = slotNum;
-
-        slotNum < p.directory.slots.size() ?
-            p.directory.setSlot(slotNum, recordLength) :
-            p.directory.addSlot(slotNum, pageDataSize, recordLength);
-
-        p.addRecord(slotNum, r, recordLength);
-
-        // Write to file
-        writePage(num, p, fileHandle, pageNum == -1);
+        unsigned pageDataSize; bool append;
+        Page page = findFreePage(recordLength + offsets.size() * sizeof(short) + sizeof(short) + sizeof(Slot),
+                                 fileHandle, pageDataSize, rid.pageNum, rid.slotNum, append);
+        Record record = prepareRecord(rid, recordDescriptor, data, recordLength, offsets, fieldInfo);
+        addRecordToPage(page, record, rid, pageDataSize, recordLength);
+        writePage(rid.pageNum, page, fileHandle, append);
         return 0;
     }
 
@@ -140,7 +82,7 @@ namespace PeterDB {
         char nullBitMap [nullBytes];
         std::memset(nullBitMap, 0, nullBytes);
         for (int i = 0; i < recordDescriptor.size(); ++i) {
-            if (record.fieldOffsets[i] == -1)
+            if (record.offsets[i] == -1)
                 nullBitMap[i / 8] = nullBitMap[i / 8] | (1 << (7 - i % 8));
         }
 
@@ -150,13 +92,13 @@ namespace PeterDB {
         int nonNullIndex = -1;
         // Add back varchar length
         for (int i = 0; i < recordDescriptor.size(); ++i) {
-            if (record.fieldOffsets[i] == -1)
+            if (record.offsets[i] == -1)
                 continue; // NULL
             int fieldSize = recordDescriptor[i].length;
             if (recordDescriptor[i].type == TypeVarChar) {
                 // Get the size of the varchar and append
-                int startIndex = nonNullIndex == -1 ? sizeof(short) * (recordDescriptor.size() + 1) : record.fieldOffsets[nonNullIndex];
-                fieldSize = record.fieldOffsets[i] == -1 ? 0 : record.fieldOffsets[i] - startIndex;
+                int startIndex = nonNullIndex == -1 ? sizeof(short) * (recordDescriptor.size() + 1) : record.offsets[nonNullIndex];
+                fieldSize = record.offsets[i] == -1 ? 0 : record.offsets[i] - startIndex;
                 memcpy((char*) data + currentOffset, &fieldSize, 4);
                 currentOffset += 4;
             }
@@ -198,17 +140,49 @@ namespace PeterDB {
         if (!page.checkValid()) // Already deleted
             return 0;
         page.deleteRecord(trueId.slotNum);
+        deepDelete(rid, fileHandle);
         return writePage(trueId.pageNum, page, fileHandle, false);
     }
 
     RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, const RID &rid) {
+        // Get existing record
+        RID trueId = rid;
+        Page page = findRecord(trueId, fileHandle);
+
+        if (!page.checkValid())
+            return -1; // Was deleted, return error
+
+        int recordOffset = page.directory.slots[trueId.slotNum].offset;
+        int recordLength = page.directory.slots[trueId.slotNum].length;
+
         // Find change in record length
-        // If new record is smaller, update in place, shift records (like delete)
-        // If bigger
-        // 1. If current page can hold the space, shift records right and update slots (length of updated record and offset of existing)
-        // 2. If current page cannot hold, find a new page, insert record there, write the new RID in old place and shift other records left.
-        return -1;
+        int fieldInfo[recordDescriptor.size()];
+        short newLength;
+        vector<short> offsets = vector<short>(recordDescriptor.size());
+        offsets.insert(offsets.begin(), 0);
+        getRecordProperties(recordDescriptor, data, newLength, offsets, fieldInfo);
+        Record record = prepareRecord(rid, recordDescriptor, data, newLength, offsets, fieldInfo);
+
+        if (newLength <= recordLength || newLength - recordLength < page.directory.freeSpace){
+            page.updateRecord(rid.slotNum, record, newLength);
+            writePage(rid.pageNum, page, fileHandle, false);
+            return 0;
+        }
+
+        // 2. If current page cannot hold, find a new page, insert record there
+        unsigned pageDataSize, pageNum;
+        unsigned short slotNum; bool append;
+        Page newPage = findFreePage(newLength, fileHandle, pageDataSize, pageNum, slotNum, append);
+        RID newRid = { pageNum, slotNum };
+        record.rid = newRid;
+        addRecordToPage(newPage, record, newRid, pageDataSize, newLength);
+        writePage(newRid.pageNum, newPage, fileHandle, append);
+
+        // Write the new RID in old place and shift other records left
+        Record ridData = getRidPlaceholder(newRid);
+        updateRid(rid, ridData, fileHandle);
+        return 0;
     }
 
     RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -300,6 +274,63 @@ namespace PeterDB {
         return page;
     }
 
+    void RecordBasedFileManager::deepDelete(RID rid, FileHandle& fileHandle) {
+        Page page = readPage(rid.pageNum, fileHandle);
+        if (page.checkRecordDeleted(rid.slotNum))
+            return;
+        Record record = page.getRecord(rid.slotNum);
+        if (!record.absent()){
+            page.deleteRecord(rid.slotNum);
+            return;
+        }
+        deepDelete(record.getNewRid(), fileHandle);
+        page.deleteRecord(rid.slotNum);
+    }
+
+    Page RecordBasedFileManager::findFreePage(short bytesNeeded, FileHandle& fileHandle, unsigned &pageDataSize,
+                                              unsigned &pageNum, unsigned short &slotNum, bool &append) {
+        pageNum = fileHandle.getNumberOfPages();
+        slotNum = 0;
+        pageDataSize = 0;
+        int allottedPage = fileHandle.findFreePage(bytesNeeded);
+        append = allottedPage == -1;
+        Page page = Page();
+        if (!append) {
+            page = readPage(allottedPage, fileHandle);
+            pageNum = (unsigned short) allottedPage;
+            slotNum = page.getFreeSlot();
+            for (short i = 0; i < page.directory.recordCount; ++i)
+                pageDataSize += page.directory.getRecordLength(i);
+        }
+        return page;
+    }
+
+    void RecordBasedFileManager::addRecordToPage(Page &page, Record &record, RID rid, unsigned pageDataSize, short recordLength) {
+        rid.slotNum < page.directory.slots.size() ? page.directory.setSlot(rid.slotNum, recordLength) :
+            page.directory.addSlot(rid.slotNum, pageDataSize, recordLength);
+        page.addRecord(rid.slotNum, record, recordLength);
+    }
+
+    Record RecordBasedFileManager::prepareRecord(RID rid, const std::vector<Attribute> &recordDescriptor,
+                                                 const void* data, int recordLength, vector<short> &offsets, int* fieldInfo) {
+        short nullBytes = ceil(((float)recordDescriptor.size()) / 8); // Null map
+        unsigned char* fieldData = (unsigned char*)malloc(recordLength);
+        int currentOffset = nullBytes;
+        int copiedOffset = 0;
+        for(int i = 0; i < recordDescriptor.size(); i++) {
+            if (offsets[i] == -1) // skip nulls
+                continue;
+            if (recordDescriptor[i].type == TypeVarChar) { // handle length descriptor for varchar
+                currentOffset += 4;
+            }
+            memcpy(fieldData + copiedOffset, (char *) data + currentOffset, fieldInfo[i]);
+            currentOffset += fieldInfo[i];
+            copiedOffset += fieldInfo[i];
+        }
+        Record record = Record(rid, recordDescriptor.size(), offsets, fieldData);
+        return record;
+    }
+
     int RecordBasedFileManager::copyAttribute(const void *data, void* destination, int& startOffset, int length) {
         std::memcpy(destination, (char *) data + startOffset, length);
         startOffset += length;
@@ -335,6 +366,64 @@ namespace PeterDB {
         return field;
     }
 
+     void RecordBasedFileManager::getRecordProperties(const std::vector<Attribute> &recordDescriptor, const void *data,
+                                                          short &recordLength, vector<short> &offsets, int *fieldLengths) {
+        short nullBytes = ceil(((float)recordDescriptor.size()) / 8);
+        recordLength = sizeof(short) + sizeof(short) * recordDescriptor.size(); // space for fieldCount 'n' and n offsets
+        if (recordLength < MIN_RECORD_SIZE)
+            recordLength = MIN_RECORD_SIZE;
+        int currentOffset = nullBytes;
+        short dataOffset = sizeof(short) * (recordDescriptor.size() + 1);
+        for (short i = 0; i < recordDescriptor.size(); ++i) {
+            // check null
+            if (((char*)data)[i / 8] & (1 << (7 - i % 8))) {
+                offsets[i] = -1;
+                fieldLengths[i] = -1;
+                continue;
+            }
+
+            // get size for varchar
+            int fieldSize = recordDescriptor[i].type == TypeVarChar ? 0 : recordDescriptor[i].length;
+            if (recordDescriptor[i].type == TypeVarChar) {
+                int varcharSize = 0;
+                memcpy(&varcharSize, (char *) data + currentOffset, 4);
+                fieldSize = varcharSize;
+                currentOffset += 4;
+            }
+            recordLength += fieldSize;
+            fieldLengths[i] = fieldSize;
+            dataOffset += fieldSize;
+            offsets[i] = dataOffset;
+            currentOffset += fieldSize;
+        }
+    }
+
+    Record RecordBasedFileManager::getRidPlaceholder(RID rid) {
+        Record record = Record();
+        record.attributeCount = -1;
+        record.offsets = vector<short>();
+        record.offsets.push_back(sizeof(short) * 3 + sizeof(rid.pageNum));
+        record.offsets.push_back(sizeof(short) * 3 + sizeof(rid.pageNum) + sizeof(rid.slotNum));
+        record.values = (unsigned char *) malloc(sizeof(RID));
+        memcpy(record.values, &rid.pageNum, sizeof(rid.pageNum));
+        memcpy(record.values + sizeof(rid.pageNum), &rid.slotNum, sizeof(rid.slotNum));
+        return record;
+    }
+
+    void RecordBasedFileManager::updateRid(RID rid, Record newRidData, FileHandle &fileHandle) {
+        Page initialPage = readPage(rid.pageNum, fileHandle);
+        Record record = initialPage.getRecord(rid.slotNum);
+        short newSize = sizeof(short) * 3 + sizeof(rid.pageNum) + sizeof(rid.slotNum);
+        if (record.absent()) {
+            RID newId = record.getNewRid();
+            Page nextPage = readPage(newId.pageNum, fileHandle);
+            record = nextPage.getRecord(newId.slotNum);
+            nextPage.deleteRecord(newId.slotNum);
+        }
+        initialPage.updateRecord(rid.slotNum, newRidData, newSize);
+        writePage(rid.pageNum, initialPage, fileHandle, false);
+    }
+
     RBFM_ScanIterator::RBFM_ScanIterator(std::vector<Attribute> recordDescriptor, std::string conditionAttribute,
                                          CompOp compOp, void *value, std::vector<std::string> attributeNames) {
         this->recordDescriptor = recordDescriptor;
@@ -349,6 +438,7 @@ namespace PeterDB {
         // Increment RID:
         // If current page has more records, increment slot until we get one present in this page (un-deleted and un-moved)
         // If all records of page are done, increment page and go to slot 0
+        // Check conditions
         // readRecord
         return RBFM_EOF;
     }

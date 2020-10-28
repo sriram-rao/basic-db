@@ -27,6 +27,11 @@ namespace PeterDB {
         return 0;
     }
 
+    RC SlotDirectory::updateSlot(unsigned short slotNum, short recordLength) {
+        slots[slotNum].length = recordLength;
+        return 0;
+    }
+
     short SlotDirectory::getRecordLength(short slotNum) const {
         return slots[slotNum].length == -1 ? (short)0 : slots[slotNum].length;
     }

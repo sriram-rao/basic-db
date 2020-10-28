@@ -55,13 +55,13 @@ namespace PeterDB {
     class Record {
     public:
         short attributeCount;
-        short* fieldOffsets;
+        vector<short> offsets;
         unsigned char* values;
 
         RID rid{};
         Record();
 
-        Record(RID id, short countOfAttributes, short* fieldOffsets, unsigned char* values);
+        Record(RID id, short countOfAttributes, vector<short> fieldOffsets, unsigned char* values);
 
         void readAttribute(int index, void* data);
 
@@ -86,6 +86,7 @@ namespace PeterDB {
 
         RC addSlot(unsigned short slotNum, short offset, short recordLength);
         RC setSlot(unsigned short slotNum, short recordLength);
+        RC updateSlot(unsigned short slotNum, short recordLength);
         short getRecordLength(short slotNum) const;
         short getRecordOffset(short slotNum) const;
     };
@@ -95,6 +96,7 @@ namespace PeterDB {
         SlotDirectory directory;
         unsigned char* records;
         RC addRecord(unsigned short slotNum, Record record, unsigned short recordLength);
+        RC updateRecord(unsigned short slotNum, Record record, short newLength);
         RC deleteRecord(unsigned short slotNum);
         bool checkValid();
         bool checkRecordDeleted(unsigned short slotNum);
@@ -108,6 +110,7 @@ namespace PeterDB {
     private:
         void moveRecords(int moveStartOffset, int destinationOffset, int length);
         int getDataRecordCount();
+        Slot findFilledSlotBetween(int startSlot, int endSlot);
     };
 
     /********************************************************************
@@ -226,8 +229,11 @@ namespace PeterDB {
         RecordBasedFileManager &operator=(const RecordBasedFileManager &);          // Prevent assignment
 
     private:
+        static const int MIN_RECORD_SIZE = sizeof(short) * 3 + sizeof(RID);
         static Page readPage(PageNum pageNum, FileHandle &file);
         static RC writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend);
+        Page findFreePage(short bytesNeeded, FileHandle& fileHandle, unsigned &pageDataSize, unsigned &pageNum,
+                          unsigned short &slotNum, bool &append);
         static int copyAttribute(const void* data, void* destination, int& startOffset, int length);
         static int copyAttribute(const void* data, void* destination, int& startOffset, int& destOffset, int length);
         static string parseTypeInt(const void* data, int& startOffset, int length);
@@ -235,6 +241,14 @@ namespace PeterDB {
         static string parseTypeVarchar(const void* data, int& startOffset, int length);
         static const unordered_map<int, copy> parserMap;
         static Page findRecord(RID& rid, FileHandle& fileHandle);
+        static void deepDelete(RID rid, FileHandle& fileHandle);
+        static void addRecordToPage(Page &page, Record &record, RID rid, unsigned pageDataSize, short recordLength);
+        static void getRecordProperties(const std::vector<Attribute> &recordDescriptor, const void *data,
+                                      short &recordLength, vector<short> &offsets, int* fieldInfo);
+        Record prepareRecord(RID rid, const vector<Attribute> &recordDescriptor, const void *data, int recordLength,
+                      vector<short> &offsets, int *fieldInfo);
+        static Record getRidPlaceholder(RID rid);
+        static void updateRid(RID rid, Record newRidData, FileHandle &fileHandle);
     };
 
 } // namespace PeterDB
