@@ -51,6 +51,7 @@ namespace PeterDB {
     } CompOp;
 
     typedef string (*copy)(const void*, int&, int);
+    typedef bool (*compare)(AttrType, const void*, const void*);
 
     class Record {
     public:
@@ -63,8 +64,8 @@ namespace PeterDB {
 
         Record(RID id, short countOfAttributes, vector<short> fieldOffsets, unsigned char* values);
 
-        void readAttribute(int index, void* data);
-
+        bool readAttribute(int index, void* data);
+        int getAttributeLength(int index);
         unsigned char* toBytes(u_short recordLength);
         static Record fromBytes(unsigned char *);
         void populateMetadata(unsigned char *);
@@ -134,11 +135,9 @@ namespace PeterDB {
 
         ~RBFM_ScanIterator() = default;;
 
-        RBFM_ScanIterator(std::vector<Attribute> recordDescriptor,
-                          std::string conditionAttribute,
-                          CompOp compOp,                  // comparison type such as "<" and "="
-                          void *value,                    // used in the comparison
-                          std::vector<std::string> attributeNames); // a list of projected attributes
+        RBFM_ScanIterator(std::vector<Attribute> recordDescriptor, std::string conditionAttribute,
+                          CompOp compOp, void *value, std::vector<std::string> attributeNames,
+                          FileHandle& fileHandle); // a list of projected attributes
         // Never keep the results in the memory. When getNextRecord() is called,
         // a satisfying record needs to be fetched from the file.
         // "data" follows the same format as RecordBasedFileManager::insertRecord().
@@ -147,12 +146,23 @@ namespace PeterDB {
         RC close();
 
     private:
-        RID currentRecord;
+        FileHandle fileHandle;
+        RID currentRecord{};
         std::vector<Attribute> recordDescriptor;
         std::string conditionAttribute;
         CompOp compOp;                  // comparison type such as "<" and "="
         void *value;                    // used in the comparison
-        vector<string> attributeNames; // a list of projected attributes
+        vector<string> attributeNames;  // a list of projected attributes
+        static const unordered_map<int, compare> comparerMap;
+
+        bool incrementRid(Page &page);  // returns true if incrementation was successful
+        bool conditionsMeet(Record record);
+
+        // Comparisons
+        static bool checkEqual(AttrType type, const void* value1, const void* value2);
+        static bool checkLessThan(AttrType type, const void* value1, const void* value2);
+        static bool checkGreaterThan(AttrType type, const void* value1, const void* value2);
+        static void getStrings(AttrType type, const void* value1, const void* value2, string& s1, string& s2);
     };
 
     class RecordBasedFileManager {
@@ -213,6 +223,9 @@ namespace PeterDB {
         RC readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid,
                          const std::string &attributeName, void *data);
 
+        RC readAttribute(Record &record, const std::vector<Attribute> &recordDescriptor, const RID &rid,
+                         const std::string &attributeName, void *data);
+
         // Scan returns an iterator to allow the caller to go through the results one by one.
         RC scan(FileHandle &fileHandle,
                 const std::vector<Attribute> &recordDescriptor,
@@ -222,6 +235,16 @@ namespace PeterDB {
                 const std::vector<std::string> &attributeNames, // a list of projected attributes
                 RBFM_ScanIterator &rbfm_ScanIterator);
 
+        static Page readPage(PageNum pageNum, FileHandle &file);
+
+        static void getRecordProperties(const std::vector<Attribute> &recordDescriptor, const void *data,
+                                      short &recordLength, vector<short> &offsets, int* fieldInfo);
+
+        static Record prepareRecord(RID rid, const vector<Attribute> &recordDescriptor, const void *data, int recordLength,
+                      vector<short> &offsets, int *fieldInfo);
+
+        static const unordered_map<int, copy> parserMap;
+
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
         ~RecordBasedFileManager();                                                  // Prevent unwanted destruction
@@ -230,7 +253,7 @@ namespace PeterDB {
 
     private:
         static const int MIN_RECORD_SIZE = sizeof(short) * 3 + sizeof(RID);
-        static Page readPage(PageNum pageNum, FileHandle &file);
+
         static RC writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend);
         Page findFreePage(short bytesNeeded, FileHandle& fileHandle, unsigned &pageDataSize, unsigned &pageNum,
                           unsigned short &slotNum, bool &append);
@@ -239,14 +262,9 @@ namespace PeterDB {
         static string parseTypeInt(const void* data, int& startOffset, int length);
         static string parseTypeReal(const void* data, int& startOffset, int length);
         static string parseTypeVarchar(const void* data, int& startOffset, int length);
-        static const unordered_map<int, copy> parserMap;
         static Page findRecord(RID& rid, FileHandle& fileHandle);
         static void deepDelete(RID rid, FileHandle& fileHandle);
         static void addRecordToPage(Page &page, Record &record, RID rid, unsigned pageDataSize, short recordLength);
-        static void getRecordProperties(const std::vector<Attribute> &recordDescriptor, const void *data,
-                                      short &recordLength, vector<short> &offsets, int* fieldInfo);
-        Record prepareRecord(RID rid, const vector<Attribute> &recordDescriptor, const void *data, int recordLength,
-                      vector<short> &offsets, int *fieldInfo);
         static Record getRidPlaceholder(RID rid);
         static void updateRid(RID rid, Record newRidData, FileHandle &fileHandle);
     };

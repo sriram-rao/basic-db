@@ -11,7 +11,20 @@ namespace PeterDB {
         this->values = values;
     }
 
-    void Record::readAttribute(int index, void* data) {
+    int Record::getAttributeLength(int index) {
+        int endOffset = offsets[index];
+        if (endOffset == -1)
+            return -1;
+        int startOffset = 0;
+        for (int i = index - 1; i >= 0; i--) {
+            if (offsets[i] == -1) continue;
+            startOffset = offsets[i];
+            break;
+        }
+        return endOffset - startOffset;
+    }
+
+    bool Record::readAttribute(int index, void* data) {
         int endOffset = offsets[index];
         int startOffset = 0;
         for (int i = index - 1; i >= 0; i--) {
@@ -19,7 +32,9 @@ namespace PeterDB {
             startOffset = offsets[i];
             break;
         }
+        data = malloc(endOffset - startOffset);
         memcpy(data, values + startOffset, endOffset - startOffset);
+        return true;
     }
 
     Record Record::fromBytes(unsigned char* bytes) {
@@ -32,8 +47,7 @@ namespace PeterDB {
     void Record::populateMetadata(unsigned char* bytes){
         memcpy(&this->attributeCount, bytes, sizeof(short));
         int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
-        offsets = vector<short>(offsetCount);
-        offsets.insert(offsets.begin(), 0);
+        offsets = vector<short>(offsetCount, 0);
         memcpy(offsets.data(), bytes + sizeof(short), sizeof(short) * offsetCount);
     }
 

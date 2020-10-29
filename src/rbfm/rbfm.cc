@@ -1,4 +1,5 @@
 #include "src/include/rbfm.h"
+#include <utility>
 #include <vector>
 #include <map>
 #include <unordered_map>
@@ -48,10 +49,10 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, RID &rid) {
+        Attribute lastAttribute = recordDescriptor.back();
         int fieldInfo[recordDescriptor.size()];
         short recordLength;
-        vector<short> offsets = vector<short>(recordDescriptor.size());
-        offsets.insert(offsets.begin(), 0);
+        vector<short> offsets (recordDescriptor.size(), 0);
         getRecordProperties(recordDescriptor, data, recordLength, offsets, fieldInfo);
         // Find the right page
         unsigned pageDataSize; bool append;
@@ -74,7 +75,7 @@ namespace PeterDB {
         int recordOffset = page.directory.slots[trueId.slotNum].offset,
             recordLength = page.directory.slots[trueId.slotNum].length;
         unsigned char* recordData = (unsigned char*) malloc(recordLength);
-        copyAttribute(page.records, recordData, reinterpret_cast<int &>(recordOffset), recordLength);
+        copyAttribute(page.records, recordData, recordOffset, recordLength);
         Record record = Record::fromBytes(recordData);
 
         // Null bitmap
@@ -92,20 +93,21 @@ namespace PeterDB {
         int nonNullIndex = -1;
         // Add back varchar length
         for (int i = 0; i < recordDescriptor.size(); ++i) {
-            if (record.offsets[i] == -1)
+            int columnPosition = i;
+            if (record.offsets[columnPosition] == -1)
                 continue; // NULL
             int fieldSize = recordDescriptor[i].length;
             if (recordDescriptor[i].type == TypeVarChar) {
                 // Get the size of the varchar and append
                 int startIndex = nonNullIndex == -1 ? sizeof(short) * (recordDescriptor.size() + 1) : record.offsets[nonNullIndex];
-                fieldSize = record.offsets[i] == -1 ? 0 : record.offsets[i] - startIndex;
+                fieldSize = record.offsets[columnPosition] == -1 ? 0 : record.offsets[columnPosition] - startIndex;
                 memcpy((char*) data + currentOffset, &fieldSize, 4);
                 currentOffset += 4;
             }
             if (fieldSize == 0)
                 continue;
             copyAttribute(record.values, data, sourceOffset, currentOffset, fieldSize);
-            nonNullIndex = i;
+            nonNullIndex = columnPosition;
         }
 
         return 0;
@@ -153,14 +155,13 @@ namespace PeterDB {
         if (!page.checkValid())
             return -1; // Was deleted, return error
 
-        int recordOffset = page.directory.slots[trueId.slotNum].offset;
         int recordLength = page.directory.slots[trueId.slotNum].length;
 
         // Find change in record length
+        Attribute lastAttribute = recordDescriptor.back();
         int fieldInfo[recordDescriptor.size()];
         short newLength;
-        vector<short> offsets = vector<short>(recordDescriptor.size());
-        offsets.insert(offsets.begin(), 0);
+        vector<short> offsets (recordDescriptor.size(), 0);
         getRecordProperties(recordDescriptor, data, newLength, offsets, fieldInfo);
         Record record = prepareRecord(rid, recordDescriptor, data, newLength, offsets, fieldInfo);
 
@@ -196,16 +197,35 @@ namespace PeterDB {
         if (record.absent())
             return -1;
 
+        return readAttribute(record, recordDescriptor, rid, attributeName, data);
+    }
+
+    RC RecordBasedFileManager::readAttribute(Record &record, const std::vector<Attribute> &recordDescriptor,
+                                             const RID &rid, const std::string &attributeName, void *data) {
         // Get the index of the attribute from descriptor
-        int attributeIndex = 0;
+        int attributeIndex = -1;
         for (int i = 0; i < recordDescriptor.size(); ++i){
             if (attributeName == recordDescriptor[i].name) {
                 attributeIndex = i;
                 break;
             }
         }
+        if (attributeIndex == -1)
+            return -1; // attribute deleted
 
-        record.readAttribute(attributeIndex, data);
+        char nullMap = 0;
+        memset(&nullMap, 0, 1);
+        int attributeLength = record.getAttributeLength(attributeIndex);
+        if (attributeLength == -1) {
+            memset(&nullMap, 1, 1);
+            memcpy(data, &nullMap, 1);
+            return 0;
+        }
+
+        memcpy(data, &nullMap, 1);
+        char *attributeData = (char*) malloc(attributeLength);
+        record.readAttribute(attributeIndex, attributeData);
+        memcpy((char*)data + 1, attributeData, attributeLength);
         return 0;
     }
 
@@ -213,7 +233,8 @@ namespace PeterDB {
                                     const std::string &conditionAttribute, const CompOp compOp, const void *value,
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
-        rbfm_ScanIterator = RBFM_ScanIterator(recordDescriptor, conditionAttribute, compOp, const_cast<void *>(value), attributeNames);
+        rbfm_ScanIterator = RBFM_ScanIterator(recordDescriptor, conditionAttribute, compOp, const_cast<void *>(value),
+                                              attributeNames, fileHandle);
         return 0;
     }
 
@@ -318,16 +339,16 @@ namespace PeterDB {
         int currentOffset = nullBytes;
         int copiedOffset = 0;
         for(int i = 0; i < recordDescriptor.size(); i++) {
-            if (offsets[i] == -1) // skip nulls
+            int columnPosition = i;
+            if (offsets[columnPosition] == -1) // skip nulls
                 continue;
-            if (recordDescriptor[i].type == TypeVarChar) { // handle length descriptor for varchar
+            if (recordDescriptor[i].type == TypeVarChar) // handle length descriptor for varchar
                 currentOffset += 4;
-            }
-            memcpy(fieldData + copiedOffset, (char *) data + currentOffset, fieldInfo[i]);
-            currentOffset += fieldInfo[i];
-            copiedOffset += fieldInfo[i];
+            memcpy(fieldData + copiedOffset, (char *) data + currentOffset, fieldInfo[columnPosition]);
+            currentOffset += fieldInfo[columnPosition];
+            copiedOffset += fieldInfo[columnPosition];
         }
-        Record record = Record(rid, recordDescriptor.size(), offsets, fieldData);
+        Record record = Record(rid, offsets.size(), offsets, fieldData);
         return record;
     }
 
@@ -370,15 +391,18 @@ namespace PeterDB {
                                                           short &recordLength, vector<short> &offsets, int *fieldLengths) {
         short nullBytes = ceil(((float)recordDescriptor.size()) / 8);
         recordLength = sizeof(short) + sizeof(short) * recordDescriptor.size(); // space for fieldCount 'n' and n offsets
-        if (recordLength < MIN_RECORD_SIZE)
-            recordLength = MIN_RECORD_SIZE;
         int currentOffset = nullBytes;
         short dataOffset = sizeof(short) * (recordDescriptor.size() + 1);
         for (short i = 0; i < recordDescriptor.size(); ++i) {
             // check null
+            int columnPosition = i;
+            for (int j = (i - 1) + 1; j < columnPosition; ++j) {
+                offsets[j] = -1;
+                fieldLengths[j] = -1;
+            }
             if (((char*)data)[i / 8] & (1 << (7 - i % 8))) {
-                offsets[i] = -1;
-                fieldLengths[i] = -1;
+                offsets[columnPosition] = -1;
+                fieldLengths[columnPosition] = -1;
                 continue;
             }
 
@@ -391,11 +415,13 @@ namespace PeterDB {
                 currentOffset += 4;
             }
             recordLength += fieldSize;
-            fieldLengths[i] = fieldSize;
+            fieldLengths[columnPosition] = fieldSize;
             dataOffset += fieldSize;
-            offsets[i] = dataOffset;
+            offsets[columnPosition] = dataOffset;
             currentOffset += fieldSize;
         }
+        if (recordLength < MIN_RECORD_SIZE)
+            recordLength = MIN_RECORD_SIZE;
     }
 
     Record RecordBasedFileManager::getRidPlaceholder(RID rid) {
@@ -422,33 +448,6 @@ namespace PeterDB {
         }
         initialPage.updateRecord(rid.slotNum, newRidData, newSize);
         writePage(rid.pageNum, initialPage, fileHandle, false);
-    }
-
-    RBFM_ScanIterator::RBFM_ScanIterator(std::vector<Attribute> recordDescriptor, std::string conditionAttribute,
-                                         CompOp compOp, void *value, std::vector<std::string> attributeNames) {
-        this->recordDescriptor = recordDescriptor;
-        this->conditionAttribute = conditionAttribute;
-        this->compOp = compOp;
-        this->value = value;
-        this->attributeNames = attributeNames;
-        this->currentRecord = { 0, 0 };
-    }
-
-    RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
-        // Increment RID:
-        // If current page has more records, increment slot until we get one present in this page (un-deleted and un-moved)
-        // If all records of page are done, increment page and go to slot 0
-        // Check conditions
-        // readRecord
-        return RBFM_EOF;
-    }
-
-    RC RBFM_ScanIterator::close() {
-        // Get rid of state
-        recordDescriptor.clear();
-        conditionAttribute.clear();
-        attributeNames.clear();
-        return 0;
     }
 } // namespace PeterDB
 
