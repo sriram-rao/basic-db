@@ -24,51 +24,76 @@ namespace PeterDB {
         this->compOp = compOp;
         this->value = value;
         this->attributeNames = std::move(attributeNames);
-        this->currentRecord = { 0, 0 };
+        this->pageNum = 0,
+        this->slotNum = -1;
         this->fileHandle = fileHandle;
         this->fileHandle.setFile(std::move(fileHandle.file));
     }
 
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
-        Page page = RecordBasedFileManager::readPage(currentRecord.pageNum, fileHandle);
+        Page page = RecordBasedFileManager::readPage(pageNum, fileHandle);
         if (!incrementRid(page))
             return RBFM_EOF;
 
-        rid = currentRecord;
-        if (page.checkRecordDeleted(currentRecord.slotNum))
+        rid = { pageNum, static_cast<unsigned short>(slotNum) };
+        if (page.checkRecordDeleted(slotNum))
             return getNextRecord(rid, data);
-        Record record = page.getRecord(currentRecord.slotNum);
+        Record record = page.getRecord(slotNum);
         if (record.absent())
             return getNextRecord(rid, data);
 
-        // Check conditions
-        if (!conditionsMeet(record))
+        if (!conditionMet(record))
             return getNextRecord(rid, data);
 
-        // readRecord
-        RecordBasedFileManager::instance().readRecord(fileHandle, recordDescriptor, currentRecord, data);
+        char* recordData = (char*) malloc(page.directory.getRecordLength(slotNum));
+        RecordBasedFileManager::instance().readRecord(fileHandle, recordDescriptor, rid, recordData);
 
-        // TODO: projection
+        // Project columns
+        int readOffset = 0, writeOffset = 0;
+        for (auto &attr : recordDescriptor) {
+            int fieldLength = 4;
+            if (TypeVarChar == attr.type) {
+                memcpy(&fieldLength, recordData + readOffset, sizeof(fieldLength));
+                readOffset += sizeof(fieldLength);
+            }
+
+            if (std::find(attributeNames.begin(), attributeNames.end(), attr.name) == attributeNames.end()) {
+                readOffset += fieldLength;
+                continue; // column not needed
+            }
+
+            if (TypeVarChar == attr.type) {
+                memcpy((char*)data + writeOffset, &fieldLength, sizeof(fieldLength));
+                writeOffset += sizeof(fieldLength);
+            }
+
+            memcpy((char*)data + writeOffset, recordData + readOffset, fieldLength);
+            writeOffset += fieldLength;
+            readOffset += fieldLength;
+        }
 
         return 0;
     }
 
     bool RBFM_ScanIterator::incrementRid(Page &page) {
-        if (page.directory.recordCount > currentRecord.slotNum + 2) {
+        if (page.directory.recordCount > slotNum + 2) {
             // If current page has more records, increment slot until we get one present in this page (un-deleted and un-moved)
-            currentRecord.slotNum++;
+            slotNum++;
             return true;
         }
-        if (fileHandle.getNumberOfPages() > currentRecord.pageNum) {
+        if (fileHandle.getNumberOfPages() > pageNum) {
             // If all records of page are done, increment page and go to slot 0
-            currentRecord.pageNum++;
-            currentRecord.slotNum = 0;
+            pageNum++;
+            slotNum = 0;
             return true;
         }
         return false;
     }
 
-    bool RBFM_ScanIterator::conditionsMeet(Record record) {
+    bool RBFM_ScanIterator::conditionMet(Record record) {
+        if (conditionAttribute.empty())
+            return true;
+
         int length = 0;
         AttrType type = TypeInt;
         for (auto & i : recordDescriptor) {
@@ -90,7 +115,6 @@ namespace PeterDB {
         recordDescriptor.clear();
         conditionAttribute.clear();
         attributeNames.clear();
-        fileHandle.close();
         return 0;
     }
 

@@ -64,6 +64,11 @@ namespace PeterDB {
         return 0;
     }
 
+    RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                                            void *data, RID &rid) {
+        return insertRecord(fileHandle, recordDescriptor, const_cast<const void *>(data), rid);
+    }
+
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                           const RID &rid, void *data) {
         RID trueId = rid;
@@ -111,6 +116,11 @@ namespace PeterDB {
         }
 
         return 0;
+    }
+
+    RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                                          void *data, RID &rid) {
+        return readRecord(fileHandle, recordDescriptor, rid, data);
     }
 
     RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
@@ -165,7 +175,7 @@ namespace PeterDB {
         getRecordProperties(recordDescriptor, data, newLength, offsets, fieldInfo);
         Record record = prepareRecord(rid, recordDescriptor, data, newLength, offsets, fieldInfo);
 
-        if (newLength <= recordLength || newLength - recordLength < page.directory.freeSpace){
+        if (newLength <= recordLength || newLength - recordLength < page.directory.freeSpace) {
             page.updateRecord(rid.slotNum, record, newLength);
             writePage(rid.pageNum, page, fileHandle, false);
             return 0;
@@ -184,6 +194,11 @@ namespace PeterDB {
         Record ridData = getRidPlaceholder(newRid);
         updateRid(rid, ridData, fileHandle);
         return 0;
+    }
+
+    RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                                            void *data, RID &rid) {
+        return updateRecord(fileHandle, recordDescriptor, const_cast<const void *>(data), const_cast<const RID &>(rid));
     }
 
     RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,

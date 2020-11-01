@@ -108,6 +108,7 @@ namespace PeterDB {
     RC FileHandle::setPageSpace(PageNum num, short freeBytes) {
         this->pageSpaceMap[num] = freeBytes;
         persistCounters();
+        return 0;
     }
 
     RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {

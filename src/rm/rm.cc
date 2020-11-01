@@ -1,4 +1,9 @@
 #include "src/include/rm.h"
+#include "src/utils/copy_utils.h"
+#include <vector>
+#include <string>
+
+using namespace std;
 
 namespace PeterDB {
     RelationManager &RelationManager::instance() {
@@ -14,81 +19,209 @@ namespace PeterDB {
 
     RelationManager &RelationManager::operator=(const RelationManager &) = default;
 
+    RecordBasedFileManager& RelationManager::recordManager = RecordBasedFileManager::instance();
+
     RC RelationManager::createCatalog() {
-        // Create file tables
-        // Create file columns
+        recordManager.createFile(TABLE_FILE_NAME);
+        recordManager.createFile(COLUMN_FILE_NAME);
+
         // Add tables and columns records into tables
+        vector<Attribute> tableDescriptor = getTablesDescriptor();
+        FileHandle handle;
+        recordManager.openFile(TABLE_FILE_NAME, handle);
+        char* data = getStaticTableRecord(1, "Tables", TABLE_FILE_NAME);
+        RID rid;
+        recordManager.insertRecord(handle, tableDescriptor, data, rid);
+        free(data);
+        data = getStaticTableRecord(2, "Columns", COLUMN_FILE_NAME);
+        recordManager.insertRecord(handle, tableDescriptor, data, rid);
+        free(data);
+        recordManager.closeFile(handle);
+
         // Add columns of "tables" and "columns" into columns
-        return -1;
+        vector<Attribute> columnsDescriptor = getColumnsDescriptor();
+        recordManager.openFile(COLUMN_FILE_NAME, handle);
+        int position = 0;
+        for (auto & attribute : tableDescriptor) {
+            data = getStaticColumnRecord(1, attribute, position);
+            recordManager.insertRecord(handle, columnsDescriptor, data, rid);
+            free(data);
+            position++;
+        }
+
+        position = 0;
+        for (auto & attribute : columnsDescriptor) {
+            data = getStaticColumnRecord(2, attribute, position);
+            recordManager.insertRecord(handle, columnsDescriptor, data, rid);
+            free(data);
+            position++;
+        }
+
+        return 0;
     }
 
     RC RelationManager::deleteCatalog() {
         // Delete tables and columns files
-        return -1;
+        recordManager.destroyFile(COLUMN_FILE_NAME);
+        recordManager.destroyFile(TABLE_FILE_NAME);
+        return 0;
     }
 
     RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs) {
+        // Get max table id from tables
+        FileHandle handle;
+        vector<Attribute> tablesDescriptor = getTablesDescriptor();
+        recordManager.openFile(TABLE_FILE_NAME, handle);
+        RBFM_ScanIterator rbfmScanner;
+        recordManager.scan(handle, tablesDescriptor, "", EQ_OP, nullptr, vector<string>(1, "table-id"), rbfmScanner);
+        int maxId = 0, currentId = 0;
+        RID rid;
+        while(rbfmScanner.getNextRecord(rid, &currentId) != RBFM_EOF) {
+            if (maxId < currentId)
+                maxId = currentId;
+        }
+        rbfmScanner.close();
+
+        if (maxId == 0) {
+            recordManager.closeFile(handle);
+            return -1;
+        }
+
         // Insert record into "tables"
-        // Insert columns into "colums"
-        return -1;
+        char* data = getTableRecord(maxId + 1, tableName, tableName, 0);
+        recordManager.insertRecord(handle, tablesDescriptor, data, rid);
+        recordManager.closeFile(handle);
+        free(data);
+
+        // Insert columns into "columns"
+        vector<Attribute> columnsDescriptor = getColumnsDescriptor();
+        recordManager.openFile(COLUMN_FILE_NAME, handle);
+        int position = 0;
+        for (auto & attribute : attrs) {
+            data = getColumnRecord(maxId + 1, attribute, position, 0);
+            recordManager.insertRecord(handle, columnsDescriptor, data, rid);
+            free(data);
+            position++;
+        }
+        recordManager.closeFile(handle);
+
+        recordManager.createFile(tableName);
+        return 0;
     }
 
     RC RelationManager::deleteTable(const std::string &tableName) {
-        // Remove columns
+        // Get table ID
+        FileHandle handle; RID rid;
+        recordManager.openFile(TABLE_FILE_NAME, handle);
+        int tableId = getTableId(tableName, handle);
+        if (tableId == -1) {
+            recordManager.closeFile(handle);
+            return -1;
+        }
+
         // Remove table
-        return -1;
+        recordManager.deleteRecord(handle, getTablesDescriptor(), rid);
+        recordManager.closeFile(handle);
+
+        // Remove columns
+        int columnTableId = -1;
+        vector<Attribute> columnsDescriptor = getColumnsDescriptor();
+        recordManager.openFile(COLUMN_FILE_NAME, handle);
+        RBFM_ScanIterator rbfmScanner;
+        recordManager.scan(handle, columnsDescriptor, "table-id", EQ_OP, &tableId, vector<string>(1, "table-id"), rbfmScanner);
+        while (rbfmScanner.getNextRecord(rid, &columnTableId) != RBFM_EOF) {
+            recordManager.deleteRecord(handle, columnsDescriptor, rid);
+        }
+        rbfmScanner.close();
+
+        // Delete file
+        recordManager.destroyFile(tableName);
+
+        return 0;
     }
 
     RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attribute> &attrs) {
-        // Fetch from columns
-        return -1;
+        FileHandle handle;
+        vector<Attribute> tablesDescriptor = getTablesDescriptor();
+        recordManager.openFile(TABLE_FILE_NAME, handle);
+        int tableId = getTableId(tableName, handle);
+        recordManager.closeFile(handle);
+        if (tableId == -1)
+            return -1;
+
+        // Fetch attributes from columns
+        recordManager.openFile(COLUMN_FILE_NAME, handle);
+        RBFM_ScanIterator scanner;
+        recordManager.scan(handle, getColumnsDescriptor(), "table-id", EQ_OP, &tableId, getAttributeSchema(), scanner);
+
+        RID rid;
+        char* data = (char*) malloc(COLUMN_RECORD_MAX_SIZE);
+        while (scanner.getNextRecord(rid, data) != RBFM_EOF) {
+            Attribute0 column = parseColumnAttribute(data);
+            if (SYSTEM_COLUMN_TYPE == column.columnType)
+                continue;
+            attrs.push_back(column.attribute);
+        }
+        scanner.close();
+        recordManager.closeFile(handle);
+
+        return attrs.empty() ? -1 : 0;
     }
 
     RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
-        // Get file name from "tables"
-        // Get descriptor from columns
-        // Open file and get the FileHandle
-        // Call RBFM.insertRecord
-        return -1;
+        return operateTuple(tableName, const_cast<void *>(data), rid, &RecordBasedFileManager::insertRecord);
     }
 
     RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
-        // Get file name from "tables"
-        // Get descriptor from columns
-        // Open file and get the FileHandle
-        // Call RBFM.deleteRecord
-        return -1;
+        FileHandle handle;
+        recordManager.openFile(tableName, handle);
+        return recordManager.deleteRecord(handle, vector<Attribute>(0), rid);
     }
 
     RC RelationManager::updateTuple(const std::string &tableName, const void *data, const RID &rid) {
-        // Get file name from "tables"
-        // Get descriptor from columns
-        // Open file and get the FileHandle
-        // Call RBFM.updateRecord
-        return -1;
+        return operateTuple(tableName, const_cast<void *>(data), const_cast<RID &>(rid), &RecordBasedFileManager::updateRecord);
     }
 
     RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void *data) {
-        // Get file name from "tables"
-        // Get descriptor from columns
-        // Open file and get the FileHandle
-        // Call RBFM.readRecord
-        return -1;
+        return operateTuple(tableName, const_cast<void *>(data), const_cast<RID &>(rid), &RecordBasedFileManager::readRecord);
+//        vector<Attribute> tupleDescriptor;
+//        if (getAttributes(tableName, tupleDescriptor) == -1)
+//            return -1;
+//
+//        FileHandle handle;
+//        recordManager.openFile(tableName, handle);
+//        RC readSuccess = recordManager.readRecord(handle, tupleDescriptor, rid, data);
+//        recordManager.closeFile(handle);
+//        return readSuccess;
+    }
+
+    RC RelationManager::operateTuple(const string &tableName, void *data, RID &rid, operateRecord operate) {
+        vector<Attribute> tupleDescriptor;
+        if (getAttributes(tableName, tupleDescriptor) == -1)
+            return -1;
+
+        FileHandle handle;
+        recordManager.openFile(tableName, handle);
+        int operationSuccess = (recordManager.*operate)(handle, tupleDescriptor, data, rid);
+        recordManager.closeFile(handle);
+        return operationSuccess;
     }
 
     RC RelationManager::printTuple(const std::vector<Attribute> &attrs, const void *data, std::ostream &out) {
-        // Get descriptor from columns
-        // Call RBFM.printRecord
-        return -1;
+        return recordManager.printRecord(attrs, data, out);
     }
 
     RC RelationManager::readAttribute(const std::string &tableName, const RID &rid, const std::string &attributeName,
                                       void *data) {
-        // Get file name from "tables"
-        // Get descriptor from columns
-        // Open file and get the FileHandle
-        // Call RBFM.readAttribute
-        return -1;
+        vector<Attribute> tupleDescriptor;
+        if (getAttributes(tableName, tupleDescriptor) == -1)
+            return -1;
+
+        FileHandle handle;
+        recordManager.openFile(tableName, handle);
+        int operationSuccess = recordManager.readAttribute(handle, tupleDescriptor, rid, attributeName, data);
+        recordManager.closeFile(handle);
+        return operationSuccess;
     }
 
     RC RelationManager::scan(const std::string &tableName,
@@ -97,28 +230,36 @@ namespace PeterDB {
                              const void *value,
                              const std::vector<std::string> &attributeNames,
                              RM_ScanIterator &rm_ScanIterator) {
-        // Get file name from "tables"
-        // Get descriptor from columns
-        // Open file and get the FileHandle
-        // Call RBFM.scan
-        // Keep in RM scan iterator
-        return -1;
+        vector<Attribute> tableSchema;
+        if (getAttributes(tableName, tableSchema) == -1)
+            return -1;
+
+        FileHandle handle;
+        RBFM_ScanIterator rbfmScanner;
+        recordManager.scan(handle, tableSchema, conditionAttribute, compOp, value, attributeNames, rbfmScanner);
+        RM_ScanIterator rmScanner;
+        rmScanner.set(rbfmScanner);
+        return 0;
     }
 
     RM_ScanIterator::RM_ScanIterator() = default;
+
+    void RM_ScanIterator::set(RBFM_ScanIterator &scanner) {
+        this->rbfmScanner = scanner;
+    }
 
     RM_ScanIterator::~RM_ScanIterator() = default;
 
     RC RM_ScanIterator::getNextTuple(RID &rid, void *data)
     {
-        // Call RBFM scanner's get next
-        return RM_EOF;
+        int end = rbfmScanner.getNextRecord(rid, data);
+        return end == RBFM_EOF ? RM_EOF : end;
     }
 
     RC RM_ScanIterator::close()
     {
-        // Call RBFM scanner's close
-        return -1;
+        rbfmScanner.close();
+        return 0;
     }
 
     // Extra credit work
@@ -129,6 +270,124 @@ namespace PeterDB {
     // Extra credit work
     RC RelationManager::addAttribute(const std::string &tableName, const Attribute &attr) {
         return -1;
+    }
+
+
+    vector<Attribute> RelationManager::getTablesDescriptor() {
+        vector<Attribute> descriptor;
+        descriptor.push_back({ "table-id", TypeInt, 4 });
+        descriptor.push_back({ "table-name", TypeVarChar, 50 });
+        descriptor.push_back({ "file-name", TypeVarChar, 50 });
+        descriptor.push_back({ "table-type", TypeInt, 4 });
+        return descriptor;
+    }
+
+    vector<Attribute> RelationManager::getColumnsDescriptor() {
+        vector<Attribute> descriptor;
+        descriptor.push_back({ "table-id", TypeInt, 4 });
+        descriptor.push_back({ "column-name", TypeVarChar, 50 });
+        descriptor.push_back({ "column-type", TypeInt, 4 });
+        descriptor.push_back({ "column-length", TypeInt, 4 });
+        descriptor.push_back({ "column-position", TypeInt, 4 });
+        descriptor.push_back({ "column-flag", TypeInt, 4 });
+        return descriptor;
+    }
+
+    vector<string> RelationManager::getAttributeSchema() {
+        vector<string> schema;
+        schema.emplace_back("column-name");
+        schema.emplace_back("column-type");
+        schema.emplace_back("column-length");
+        schema.emplace_back("column-type");
+        return schema;
+    }
+
+    Attribute0 RelationManager::parseColumnAttribute(char* data) {
+        // name varchar, type int, length int
+        int nameLength = 0;
+        int copiedLength = 0;
+        CopyUtils::copyAttribute(data, &nameLength, copiedLength, sizeof(nameLength));
+        char *name = (char *) malloc(nameLength);
+        CopyUtils::copyAttribute(data, name, copiedLength, nameLength);
+        int type, length, columnType;
+        CopyUtils::copyAttribute(data, &type, copiedLength, sizeof(type));
+        CopyUtils::copyAttribute(data, &length, copiedLength, sizeof(length));
+        CopyUtils::copyAttribute(data, &columnType, copiedLength, sizeof(columnType));
+
+        Attribute0 column;
+        column.attribute.name = string (name);
+        column.attribute.type = static_cast<AttrType>(type);
+        column.attribute.length = length;
+        column.columnType = columnType;
+        return column;
+    }
+
+    char* RelationManager::getStaticTableRecord(int id, const string& name, const string& fileName) {
+        return getTableRecord(id, name, fileName, SYSTEM_TABLE_TYPE); // 1 table type means system table
+    }
+
+    char* RelationManager::getTableRecord(int id, const string &name, const string &fileName, int tableType) {
+        int copiedLength = 0;
+        char nullMap = 0;
+        int length = name.length();
+        memset(&nullMap, 0, 1);
+        char* data = (char*) malloc(sizeof(id) + sizeof(length) * 2 + name.length() + fileName.length() + sizeof(int));
+        copyData(data, &nullMap, copiedLength, 1);
+        copyData(data, &id, copiedLength, sizeof(id));
+        copyData(data, &length, copiedLength, sizeof(length));
+        copyData(data, (char*)name.c_str(), copiedLength, length);
+        length = fileName.length();
+        copyData(data, &length, copiedLength, sizeof(length));
+        copyData(data, (char*)fileName.c_str(), copiedLength, length);
+        copyData(data, &tableType, copiedLength, 4);
+        return data;
+    }
+
+    char* RelationManager::getStaticColumnRecord(int id, const Attribute &attribute, int position) {
+        return getColumnRecord(id, attribute, position, 0); // 1 column flag type means system column
+    }
+
+    char* RelationManager::getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag) {
+        int copiedLength = 0;
+        char nullMap = 0;
+        int length = attribute.name.length();
+        int columnType = attribute.type;
+        memset(&nullMap, 0, 1);
+        char* data = (char*) malloc(sizeof(id) + sizeof(length) + attribute.name.length() + sizeof(attribute.length)
+                                    + sizeof(columnType) + sizeof(position) + sizeof(columnFlag));
+        copyData(data, &nullMap, copiedLength, 1);
+        copyData(data, &id, copiedLength, sizeof(id));
+
+        copyData(data, &length, copiedLength, sizeof(length));
+        copyData(data, (char*)attribute.name.c_str(), copiedLength, length);
+
+        int attributeLength = attribute.length;
+        copyData(data, &attributeLength, copiedLength, sizeof(attribute.length));
+        copyData(data, &columnType, copiedLength, sizeof(columnType));
+
+        copyData(data, &position, copiedLength, sizeof(position));
+        copyData(data, &columnFlag, copiedLength, sizeof(columnFlag));
+        return data;
+    }
+
+    void RelationManager::copyData(void* data, void* newData, int& copiedLength, int newLength) {
+        memcpy((char*)data + copiedLength, newData, newLength);
+        copiedLength += newLength;
+    }
+
+    int RelationManager::getTableId(const string &tableName, FileHandle &handle) {
+        vector<Attribute> tablesDescriptor = getTablesDescriptor();
+        RBFM_ScanIterator rbfmScanner;
+        recordManager.scan(handle, tablesDescriptor, "table-name", EQ_OP, tableName.c_str(), vector<string>(1, "table-id"), rbfmScanner);
+        int tableId = 2;
+        RID rid;
+        while(rbfmScanner.getNextRecord(rid, &tableId) != RBFM_EOF) {}
+
+        if (tableId == 2) // Table-Id 2 is reserved for columns table. tableName does not exist
+            return -1;
+
+        rbfmScanner.close();
+        return tableId;
     }
 
 } // namespace PeterDB

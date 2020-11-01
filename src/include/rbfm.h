@@ -39,6 +39,11 @@ namespace PeterDB {
         AttrLength length; // attribute length
     } Attribute;
 
+    typedef struct Attribute0 {
+        Attribute attribute;
+        int columnType;
+    } Attribute0;
+
     // Comparison Operator (NOT needed for part 1 of the project)
     typedef enum {
         EQ_OP = 0, // no condition// =
@@ -147,7 +152,8 @@ namespace PeterDB {
 
     private:
         FileHandle fileHandle;
-        RID currentRecord{};
+        unsigned pageNum;
+        short slotNum;
         std::vector<Attribute> recordDescriptor;
         std::string conditionAttribute;
         CompOp compOp;                  // comparison type such as "<" and "="
@@ -156,7 +162,7 @@ namespace PeterDB {
         static const unordered_map<int, compare> comparerMap;
 
         bool incrementRid(Page &page);  // returns true if incrementation was successful
-        bool conditionsMeet(Record record);
+        bool conditionMet(Record record);
 
         // Comparisons
         static bool checkEqual(AttrType type, const void* value1, const void* value2);
@@ -195,10 +201,15 @@ namespace PeterDB {
         // Insert a record into a file
         RC insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const void *data,
                         RID &rid);
+        RC insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, void *data,
+                        RID &rid);
 
         // Read a record identified by the given rid.
         RC
         readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid, void *data);
+
+        RC
+        readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,  void *data, RID &rid);
 
         // Print the record that is passed to this utility method.
         // This method will be mainly used for debugging/testing.
@@ -218,6 +229,8 @@ namespace PeterDB {
         // Assume the RID does not change after an update
         RC updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const void *data,
                         const RID &rid);
+        RC updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, void *data,
+                        RID &rid);
 
         // Read an attribute given its name and the rid.
         RC readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid,
