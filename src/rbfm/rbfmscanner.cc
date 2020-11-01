@@ -104,7 +104,7 @@ namespace PeterDB {
             }
         }
         char* data = (char*) malloc(length);
-        int readSuccess = RecordBasedFileManager::instance().readAttribute(record, recordDescriptor, currentRecord, conditionAttribute, data);
+        int readSuccess = RecordBasedFileManager::instance().readAttribute(record, recordDescriptor, { pageNum, static_cast<unsigned short>(slotNum) }, conditionAttribute, data);
         if (!readSuccess)
             return false; // if attribute isn't present, default is that the record doesn't match
         return comparerMap.at(compOp)(type, value, data);
