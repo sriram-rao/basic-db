@@ -1,3 +1,6 @@
+#include <utility>
+
+
 #include "src/include/rbfm.h"
 
 namespace PeterDB {
@@ -6,7 +9,7 @@ namespace PeterDB {
     SlotDirectory::SlotDirectory(short freeSpace, short recordCount, vector<Slot> slots) {
         this->freeSpace = freeSpace;
         this->recordCount = recordCount;
-        this->slots = slots;
+        this->slots = std::move(slots);
     }
 
     SlotDirectory::~SlotDirectory() = default;

@@ -76,7 +76,9 @@ namespace PeterDB {
     RC FileHandle::readPage(PageNum pageNum, void *data) {
         if (getNumberOfPages() < pageNum) return -1;
         char* bytes = new char[PAGE_SIZE];
-        file.seekg((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE);
+        if (file.eof())
+            file.clear();
+        file.seekg((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE, ios::beg);
         file.read(bytes, PAGE_SIZE);
         std::memcpy(data, bytes, PAGE_SIZE);
         delete[] bytes;
@@ -88,6 +90,7 @@ namespace PeterDB {
         if (getNumberOfPages() < pageNum) return -1;
         file.seekp((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE, ios::beg);
         file.write(reinterpret_cast<char *>(const_cast<void *>(data)), PAGE_SIZE);
+        file.flush();
         writePageCounter++;
         return 0;
     }

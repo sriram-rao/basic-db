@@ -27,7 +27,12 @@ namespace PeterDB {
         this->pageNum = 0,
         this->slotNum = -1;
         this->fileHandle = fileHandle;
-        this->fileHandle.setFile(std::move(fileHandle.file));
+        // Call setFile to move the fstream
+        // this->fileHandle.setFile(std::move(fileHandle.file));
+    }
+
+    void RBFM_ScanIterator::setFile(fstream &&file) {
+        this->fileHandle.setFile(std::move(file));
     }
 
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
@@ -45,12 +50,22 @@ namespace PeterDB {
         if (!conditionMet(record))
             return getNextRecord(rid, data);
 
-        char* recordData = (char*) malloc(page.directory.getRecordLength(slotNum));
+        int recordLength = page.directory.getRecordLength(slotNum);
+        char* recordData = (char*) malloc(recordLength);
         RecordBasedFileManager::instance().readRecord(fileHandle, recordDescriptor, rid, recordData);
 
+        // Null bitmap
+        int readOffset = ceil((float)recordDescriptor.size() / 8),
+            writeOffset = 0;
+        int columnIndex = -1, currentIndex = -1;
+        int nullBytes = ceil((float)attributeNames.size() / 8);
+        char nullBitMap [nullBytes];
+        std::memset(nullBitMap, 0, nullBytes);
+        char* scanData = (char*) malloc(recordLength);
+
         // Project columns
-        int readOffset = 0, writeOffset = 0;
         for (auto &attr : recordDescriptor) {
+            columnIndex++;
             int fieldLength = 4;
             if (TypeVarChar == attr.type) {
                 memcpy(&fieldLength, recordData + readOffset, sizeof(fieldLength));
@@ -61,27 +76,32 @@ namespace PeterDB {
                 readOffset += fieldLength;
                 continue; // column not needed
             }
+            currentIndex++;
+            if (record.offsets[currentIndex] == -1)
+                nullBitMap[currentIndex / 8] = nullBitMap[currentIndex / 8] | (1 << (7 - currentIndex % 8));
 
             if (TypeVarChar == attr.type) {
-                memcpy((char*)data + writeOffset, &fieldLength, sizeof(fieldLength));
+                memcpy(scanData + writeOffset, &fieldLength, sizeof(fieldLength));
                 writeOffset += sizeof(fieldLength);
             }
 
-            memcpy((char*)data + writeOffset, recordData + readOffset, fieldLength);
+            memcpy(scanData + writeOffset, recordData + readOffset, fieldLength);
             writeOffset += fieldLength;
             readOffset += fieldLength;
         }
+        memcpy(data, nullBitMap, nullBytes);
+        memcpy((char*)data + nullBytes, scanData, writeOffset);
 
         return 0;
     }
 
     bool RBFM_ScanIterator::incrementRid(Page &page) {
-        if (page.directory.recordCount > slotNum + 2) {
+        if (page.directory.recordCount >= slotNum + 2) {
             // If current page has more records, increment slot until we get one present in this page (un-deleted and un-moved)
             slotNum++;
             return true;
         }
-        if (fileHandle.getNumberOfPages() > pageNum) {
+        if (fileHandle.getNumberOfPages() > pageNum + 2) {
             // If all records of page are done, increment page and go to slot 0
             pageNum++;
             slotNum = 0;
@@ -105,7 +125,7 @@ namespace PeterDB {
         }
         char* data = (char*) malloc(length);
         int readSuccess = RecordBasedFileManager::instance().readAttribute(record, recordDescriptor, { pageNum, static_cast<unsigned short>(slotNum) }, conditionAttribute, data);
-        if (!readSuccess)
+        if (readSuccess != 0)
             return false; // if attribute isn't present, default is that the record doesn't match
         return comparerMap.at(compOp)(type, value, data);
     }
@@ -115,6 +135,7 @@ namespace PeterDB {
         recordDescriptor.clear();
         conditionAttribute.clear();
         attributeNames.clear();
+        fileHandle.close();
         return 0;
     }
 
@@ -150,9 +171,11 @@ namespace PeterDB {
 
     void RBFM_ScanIterator::getStrings(AttrType type, const void* value1, const void* value2, string& s1, string& s2) {
         copy copyMethod = RecordBasedFileManager::parserMap.at(type);
-        int startOffset = 0;
-        s1 = copyMethod(value1, startOffset, 4);
-        startOffset = 0;
-        s2 = copyMethod(value2, startOffset, 4);
+        int startOffset = 1;
+        if (!(((char *) value1)[0] & (1 << 7)))
+            s1 = copyMethod(value1, startOffset, 4);
+        startOffset = 1;
+        if (!(((char *) value2)[0] & (1 << 7)))
+            s2 = copyMethod(value2, startOffset, 4);
     }
 }

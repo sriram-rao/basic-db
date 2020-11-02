@@ -4,7 +4,7 @@
 namespace PeterDB {
     Record::Record() = default;
 
-    Record::Record(RID id, short countOfAttributes, vector<short> offsets, unsigned char* values) {
+    Record::Record(RID id, short countOfAttributes, vector<short> offsets, char* values) {
         this->rid = id;
         this->attributeCount = countOfAttributes;
         this->offsets = offsets;
@@ -26,14 +26,15 @@ namespace PeterDB {
 
     bool Record::readAttribute(int index, void* data) {
         int endOffset = offsets[index];
-        int startOffset = 0;
+        int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
+        int metadataSize = sizeof(short) + sizeof(short) * offsetCount;
+        int startOffset = metadataSize;
         for (int i = index - 1; i >= 0; i--) {
             if (offsets[i] == -1) continue;
             startOffset = offsets[i];
             break;
         }
-        data = malloc(endOffset - startOffset);
-        memcpy(data, values + startOffset, endOffset - startOffset);
+        memcpy(data, values + startOffset - metadataSize, endOffset - startOffset);
         return true;
     }
 
@@ -61,7 +62,7 @@ namespace PeterDB {
             dataSize = offsets[i] - metadataSize;
             break;
         }
-        unsigned char* data = (unsigned char*) malloc(dataSize);
+        char* data = (char*) malloc(dataSize);
         memcpy(data, bytes + metadataSize, dataSize);
         this->values = data;
     }

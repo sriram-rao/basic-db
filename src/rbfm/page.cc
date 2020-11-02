@@ -5,20 +5,20 @@ using namespace std;
 
 namespace PeterDB {
     Page::Page() {
-        this->records = (unsigned char*) malloc(sizeof(unsigned char));
+        this->records = (char*) malloc(sizeof(char));
         vector<Slot> slots;
         this->directory = SlotDirectory(PAGE_SIZE - sizeof(short) * 2, 0, slots);
     }
 
-    Page::Page(SlotDirectory &directory, unsigned char* records) {
+    Page::Page(SlotDirectory &directory, char* records) {
         this->directory = directory;
         this->records = records;
     }
 
     RC Page::addRecord(unsigned short slotNum, Record record, unsigned short recordLength) {
-        short dataSize = getDataRecordCount() == 0 ? (short)0 : PAGE_SIZE - sizeof(short) * 2 -
+        int dataSize = getDataRecordCount() == 0 ? (short)0 : PAGE_SIZE - sizeof(short) * 2 -
                 sizeof(Slot) * this->directory.slots.size() - this->directory.freeSpace;
-        unsigned char* newBytes = (unsigned char *) malloc(dataSize + recordLength);
+        char* newBytes = (char *) malloc(dataSize + recordLength);
 
         // To copy data to the left of the record
         Slot leftSlot = findFilledSlotBetween(0, slotNum - 1);
@@ -112,7 +112,7 @@ namespace PeterDB {
         {
             short dataSize = getDataRecordCount() == 0 ? (short)0 :
                     PAGE_SIZE - sizeof(short) * 2 - sizeof(Slot) * directory.slots.size() - directory.freeSpace;
-            unsigned char* newBytes = (unsigned char *) malloc(dataSize + destinationOffset - moveStartOffset);
+            char *newBytes = (char *) malloc(dataSize + destinationOffset - moveStartOffset);
             memcpy(newBytes, records, dataSize);
             free(records);
             records = newBytes;

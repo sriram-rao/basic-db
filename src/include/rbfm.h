@@ -62,12 +62,12 @@ namespace PeterDB {
     public:
         short attributeCount;
         vector<short> offsets;
-        unsigned char* values;
+        char* values;
 
         RID rid{};
         Record();
 
-        Record(RID id, short countOfAttributes, vector<short> fieldOffsets, unsigned char* values);
+        Record(RID id, short countOfAttributes, vector<short> fieldOffsets, char* values);
 
         bool readAttribute(int index, void* data);
         int getAttributeLength(int index);
@@ -100,7 +100,7 @@ namespace PeterDB {
     class Page {
     public:
         SlotDirectory directory;
-        unsigned char* records;
+        char* records;
         RC addRecord(unsigned short slotNum, Record record, unsigned short recordLength);
         RC updateRecord(unsigned short slotNum, Record record, short newLength);
         RC deleteRecord(unsigned short slotNum);
@@ -110,7 +110,7 @@ namespace PeterDB {
         unsigned short getFreeSlot();
 
         Page();
-        Page(SlotDirectory &directory, unsigned char* records);
+        Page(SlotDirectory &directory, char* records);
         ~Page();
 
     private:
@@ -149,6 +149,8 @@ namespace PeterDB {
         RC getNextRecord(RID &rid, void *data);
 
         RC close();
+
+        void setFile(fstream&& file);
 
     private:
         FileHandle fileHandle;

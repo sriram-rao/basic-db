@@ -37,6 +37,7 @@ namespace PeterDB {
         recordManager.insertRecord(handle, tableDescriptor, data, rid);
         free(data);
         recordManager.closeFile(handle);
+        handle = FileHandle();
 
         // Add columns of "tables" and "columns" into columns
         vector<Attribute> columnsDescriptor = getColumnsDescriptor();
@@ -56,8 +57,7 @@ namespace PeterDB {
             free(data);
             position++;
         }
-
-        return 0;
+        return recordManager.closeFile(handle);
     }
 
     RC RelationManager::deleteCatalog() {
@@ -68,91 +68,90 @@ namespace PeterDB {
     }
 
     RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs) {
-        // Get max table id from tables
-        FileHandle handle;
-        vector<Attribute> tablesDescriptor = getTablesDescriptor();
-        recordManager.openFile(TABLE_FILE_NAME, handle);
-        RBFM_ScanIterator rbfmScanner;
-        recordManager.scan(handle, tablesDescriptor, "", EQ_OP, nullptr, vector<string>(1, "table-id"), rbfmScanner);
-        int maxId = 0, currentId = 0;
-        RID rid;
-        while(rbfmScanner.getNextRecord(rid, &currentId) != RBFM_EOF) {
-            if (maxId < currentId)
-                maxId = currentId;
-        }
-        rbfmScanner.close();
-
-        if (maxId == 0) {
-            recordManager.closeFile(handle);
-            return -1;
-        }
+        int maxId = getMaxTableId();
+        if (maxId == -1)
+            return -1; // No catalog, return error
 
         // Insert record into "tables"
+        FileHandle handle;
+        recordManager.openFile(TABLE_FILE_NAME, handle);
         char* data = getTableRecord(maxId + 1, tableName, tableName, 0);
-        recordManager.insertRecord(handle, tablesDescriptor, data, rid);
+        RID rid;
+        recordManager.insertRecord(handle, getTablesDescriptor(), data, rid);
         recordManager.closeFile(handle);
         free(data);
+        handle = FileHandle();
 
         // Insert columns into "columns"
-        vector<Attribute> columnsDescriptor = getColumnsDescriptor();
         recordManager.openFile(COLUMN_FILE_NAME, handle);
         int position = 0;
         for (auto & attribute : attrs) {
             data = getColumnRecord(maxId + 1, attribute, position, 0);
-            recordManager.insertRecord(handle, columnsDescriptor, data, rid);
+            recordManager.insertRecord(handle, getColumnsDescriptor(), data, rid);
             free(data);
             position++;
         }
         recordManager.closeFile(handle);
 
-        recordManager.createFile(tableName);
-        return 0;
+        return recordManager.createFile(tableName);
     }
 
     RC RelationManager::deleteTable(const std::string &tableName) {
         // Get table ID
         FileHandle handle; RID rid;
-        recordManager.openFile(TABLE_FILE_NAME, handle);
-        int tableId = getTableId(tableName, handle);
+        int tableId = getTableId(tableName, rid);
         if (tableId == -1) {
-            recordManager.closeFile(handle);
             return -1;
         }
 
         // Remove table
+        recordManager.openFile(TABLE_FILE_NAME, handle);
         recordManager.deleteRecord(handle, getTablesDescriptor(), rid);
         recordManager.closeFile(handle);
+        handle = FileHandle();
 
-        // Remove columns
+        // Get the columns RIDs for this table
         int columnTableId = -1;
         vector<Attribute> columnsDescriptor = getColumnsDescriptor();
+
+        char *tableFilter = (char *)malloc(sizeof(tableId) + 1);
+        makeTableIdFilter(tableId, tableFilter);
+
         recordManager.openFile(COLUMN_FILE_NAME, handle);
+        vector<RID> columnsToDelete;
         RBFM_ScanIterator rbfmScanner;
-        recordManager.scan(handle, columnsDescriptor, "table-id", EQ_OP, &tableId, vector<string>(1, "table-id"), rbfmScanner);
-        while (rbfmScanner.getNextRecord(rid, &columnTableId) != RBFM_EOF) {
-            recordManager.deleteRecord(handle, columnsDescriptor, rid);
-        }
+        recordManager.scan(handle, columnsDescriptor, "table-id", EQ_OP, tableFilter, vector<string>(1, "table-id"), rbfmScanner);
+        while (rbfmScanner.getNextRecord(rid, &columnTableId) != RBFM_EOF)
+            columnsToDelete.push_back(rid);
         rbfmScanner.close();
+        recordManager.closeFile(handle);
+
+        handle = FileHandle();
+        recordManager.openFile(COLUMN_FILE_NAME, handle);
+        // Delete columns
+        for (RID colRid : columnsToDelete)
+            recordManager.deleteRecord(handle, columnsDescriptor, colRid);
+        recordManager.closeFile(handle);
+        free(tableFilter);
 
         // Delete file
-        recordManager.destroyFile(tableName);
-
-        return 0;
+        return recordManager.destroyFile(tableName);
     }
 
     RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attribute> &attrs) {
-        FileHandle handle;
+        FileHandle handle; RID tableRid;
         vector<Attribute> tablesDescriptor = getTablesDescriptor();
-        recordManager.openFile(TABLE_FILE_NAME, handle);
-        int tableId = getTableId(tableName, handle);
-        recordManager.closeFile(handle);
+        int tableId = getTableId(tableName, tableRid);
         if (tableId == -1)
             return -1;
 
         // Fetch attributes from columns
+        handle = FileHandle();
+        char *tableFilter = (char *)malloc(sizeof(tableId) + 1);
+        makeTableIdFilter(tableId, tableFilter);
         recordManager.openFile(COLUMN_FILE_NAME, handle);
         RBFM_ScanIterator scanner;
-        recordManager.scan(handle, getColumnsDescriptor(), "table-id", EQ_OP, &tableId, getAttributeSchema(), scanner);
+        recordManager.scan(handle, getColumnsDescriptor(), "table-id", EQ_OP, tableFilter, getAttributeSchema(), scanner);
 
         RID rid;
         char* data = (char*) malloc(COLUMN_RECORD_MAX_SIZE);
@@ -164,6 +163,7 @@ namespace PeterDB {
         }
         scanner.close();
         recordManager.closeFile(handle);
+        free(tableFilter);
 
         return attrs.empty() ? -1 : 0;
     }
@@ -303,9 +303,8 @@ namespace PeterDB {
     }
 
     Attribute0 RelationManager::parseColumnAttribute(char* data) {
-        // name varchar, type int, length int
         int nameLength = 0;
-        int copiedLength = 0;
+        int copiedLength = 1; // Skip null byte since we should not have nulls in Columns table anyway
         CopyUtils::copyAttribute(data, &nameLength, copiedLength, sizeof(nameLength));
         char *name = (char *) malloc(nameLength);
         CopyUtils::copyAttribute(data, name, copiedLength, nameLength);
@@ -375,19 +374,59 @@ namespace PeterDB {
         copiedLength += newLength;
     }
 
-    int RelationManager::getTableId(const string &tableName, FileHandle &handle) {
+    int RelationManager::getTableId(const string &tableName, RID &tableRid) {
+        FileHandle handle;
         vector<Attribute> tablesDescriptor = getTablesDescriptor();
         RBFM_ScanIterator rbfmScanner;
-        recordManager.scan(handle, tablesDescriptor, "table-name", EQ_OP, tableName.c_str(), vector<string>(1, "table-id"), rbfmScanner);
+        char *tableFilter = (char *)malloc(tableName.size() + sizeof(int) + 1);
+        char nullMap = 0;
+        memset(&nullMap, 0, 1);
+        memcpy(tableFilter, &nullMap, 1);
+        int tableNameLength = tableName.size();
+        memcpy(tableFilter + 1, &tableNameLength, sizeof(tableNameLength));
+        memcpy(tableFilter + 1 + sizeof(tableNameLength), tableName.c_str(), tableNameLength);
+        recordManager.openFile(TABLE_FILE_NAME, handle);
+        recordManager.scan(handle, tablesDescriptor, "table-name", EQ_OP, tableFilter, vector<string>(1, "table-id"), rbfmScanner);
+        char *tableIdData = (char *)malloc(sizeof(int) + 1);
         int tableId = 2;
         RID rid;
-        while(rbfmScanner.getNextRecord(rid, &tableId) != RBFM_EOF) {}
-
-        if (tableId == 2) // Table-Id 2 is reserved for columns table. tableName does not exist
-            return -1;
+        while(rbfmScanner.getNextRecord(rid, tableIdData) != RBFM_EOF) {
+            tableRid = rid;
+            memcpy(&tableId, tableIdData + 1, sizeof(tableId));
+            break;
+        }
 
         rbfmScanner.close();
-        return tableId;
+        recordManager.closeFile(handle);
+        return tableId <= 2 ? -1 : tableId;
+    }
+
+    void RelationManager::makeTableIdFilter(int tableId, char* tableFilter) {
+        char nullMap = 0;
+        memset(&nullMap, 0, 1);
+        memcpy(tableFilter, &nullMap, 1);
+        memcpy(tableFilter + 1, &tableId, sizeof(tableId));
+    }
+
+    int RelationManager::getMaxTableId() {
+        FileHandle handle;
+        vector<Attribute> tablesDescriptor = getTablesDescriptor();
+        recordManager.openFile(TABLE_FILE_NAME, handle);
+        RBFM_ScanIterator rbfmScanner;
+        recordManager.scan(handle, tablesDescriptor, "", EQ_OP, nullptr, vector<string>(1, "table-id"), rbfmScanner);
+        int maxId = -1;
+        char *tableId = (char *)malloc(sizeof(int) + 1);
+        RID rid;
+        while(rbfmScanner.getNextRecord(rid, tableId) != RBFM_EOF) {
+            int currentId = -1;
+            memcpy(&currentId, tableId + 1, sizeof(currentId));
+            if (maxId < currentId)
+                maxId = currentId;
+        }
+        rbfmScanner.close();
+        recordManager.closeFile(handle);
+
+        return maxId;
     }
 
 } // namespace PeterDB

@@ -232,15 +232,20 @@ namespace PeterDB {
         memset(&nullMap, 0, 1);
         int attributeLength = record.getAttributeLength(attributeIndex);
         if (attributeLength == -1) {
-            memset(&nullMap, 1, 1);
+            memset(&nullMap, 1, 1); // TODO: Set the correct bit to 1
             memcpy(data, &nullMap, 1);
             return 0;
         }
 
         memcpy(data, &nullMap, 1);
+        int copiedLength = 1;
+        if (TypeVarChar == recordDescriptor[attributeIndex].type) {
+            memcpy((char *) data + 1, &attributeLength, sizeof(attributeLength));
+            copiedLength += sizeof(attributeLength);
+        }
         char *attributeData = (char*) malloc(attributeLength);
         record.readAttribute(attributeIndex, attributeData);
-        memcpy((char*)data + 1, attributeData, attributeLength);
+        memcpy((char*)data + copiedLength, attributeData, attributeLength);
         return 0;
     }
 
@@ -250,6 +255,7 @@ namespace PeterDB {
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
         rbfm_ScanIterator = RBFM_ScanIterator(recordDescriptor, conditionAttribute, compOp, const_cast<void *>(value),
                                               attributeNames, fileHandle);
+        rbfm_ScanIterator.setFile(std::move(fileHandle.file));
         return 0;
     }
 
@@ -270,7 +276,7 @@ namespace PeterDB {
 
         // Read records as array
         u_short recordsSize = PAGE_SIZE - sizeof(short) * 2 - slotSize - freeBytes;
-        unsigned char* records = (unsigned char*) malloc(recordsSize);
+        char* records = (char*) malloc(recordsSize);
         memcpy(records, pageData, recordsSize);
         free(pageData);
         return Page(dir, records);
@@ -350,7 +356,7 @@ namespace PeterDB {
     Record RecordBasedFileManager::prepareRecord(RID rid, const std::vector<Attribute> &recordDescriptor,
                                                  const void* data, int recordLength, vector<short> &offsets, int* fieldInfo) {
         short nullBytes = ceil(((float)recordDescriptor.size()) / 8); // Null map
-        unsigned char* fieldData = (unsigned char*)malloc(recordLength);
+        char* fieldData = (char*)malloc(recordLength);
         int currentOffset = nullBytes;
         int copiedOffset = 0;
         for(int i = 0; i < recordDescriptor.size(); i++) {
@@ -445,7 +451,7 @@ namespace PeterDB {
         record.offsets = vector<short>();
         record.offsets.push_back(sizeof(short) * 3 + sizeof(rid.pageNum));
         record.offsets.push_back(sizeof(short) * 3 + sizeof(rid.pageNum) + sizeof(rid.slotNum));
-        record.values = (unsigned char *) malloc(sizeof(RID));
+        record.values = (char *) malloc(sizeof(RID));
         memcpy(record.values, &rid.pageNum, sizeof(rid.pageNum));
         memcpy(record.values + sizeof(rid.pageNum), &rid.slotNum, sizeof(rid.slotNum));
         return record;

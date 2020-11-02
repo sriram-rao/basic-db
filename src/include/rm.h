@@ -93,7 +93,9 @@ namespace PeterDB {
         static vector<string> getAttributeSchema();
         static Attribute0 parseColumnAttribute(char* data);
         static void copyData(void* data, void* newData, int& copiedLength, int newLength);
-        int getTableId(const string &tableName, FileHandle &handle);
+        int getTableId(const string &tableName, RID &tableRid);
+        void makeTableIdFilter(int tableId, char* tableFilter);
+        int getMaxTableId();
         int operateTuple(const string &tableName, void *data, RID &rid, operateRecord);
 
         static const int TABLE_RECORD_MAX_SIZE = 208;
