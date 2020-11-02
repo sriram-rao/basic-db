@@ -29,13 +29,12 @@ namespace PeterDB {
         vector<Attribute> tableDescriptor = getTablesDescriptor();
         FileHandle handle;
         recordManager.openFile(TABLE_FILE_NAME, handle);
-        char* data = getStaticTableRecord(1, "Tables", TABLE_FILE_NAME);
+        char* data = (char*) malloc(TABLE_RECORD_MAX_SIZE);
+        getStaticTableRecord(1, "Tables", TABLE_FILE_NAME, data);
         RID rid;
         recordManager.insertRecord(handle, tableDescriptor, data, rid);
-        free(data);
-        data = getStaticTableRecord(2, "Columns", COLUMN_FILE_NAME);
+        getStaticTableRecord(2, "Columns", COLUMN_FILE_NAME, data);
         recordManager.insertRecord(handle, tableDescriptor, data, rid);
-        free(data);
         recordManager.closeFile(handle);
         handle = FileHandle();
 
@@ -44,19 +43,18 @@ namespace PeterDB {
         recordManager.openFile(COLUMN_FILE_NAME, handle);
         int position = 0;
         for (auto & attribute : tableDescriptor) {
-            data = getStaticColumnRecord(1, attribute, position);
+            getStaticColumnRecord(1, attribute, position, data);
             recordManager.insertRecord(handle, columnsDescriptor, data, rid);
-            free(data);
             position++;
         }
 
         position = 0;
         for (auto & attribute : columnsDescriptor) {
-            data = getStaticColumnRecord(2, attribute, position);
+            getStaticColumnRecord(2, attribute, position, data);
             recordManager.insertRecord(handle, columnsDescriptor, data, rid);
-            free(data);
             position++;
         }
+        free(data);
         return recordManager.closeFile(handle);
     }
 
@@ -75,22 +73,22 @@ namespace PeterDB {
         // Insert record into "tables"
         FileHandle handle;
         recordManager.openFile(TABLE_FILE_NAME, handle);
-        char* data = getTableRecord(maxId + 1, tableName, tableName, 0);
+        char* data = (char *) malloc(TABLE_RECORD_MAX_SIZE);
+        getTableRecord(maxId + 1, tableName, tableName, 0, data);
         RID rid;
         recordManager.insertRecord(handle, getTablesDescriptor(), data, rid);
         recordManager.closeFile(handle);
-        free(data);
         handle = FileHandle();
 
         // Insert columns into "columns"
         recordManager.openFile(COLUMN_FILE_NAME, handle);
         int position = 0;
         for (auto & attribute : attrs) {
-            data = getColumnRecord(maxId + 1, attribute, position, 0);
+            getColumnRecord(maxId + 1, attribute, position, 0, data);
             recordManager.insertRecord(handle, getColumnsDescriptor(), data, rid);
-            free(data);
             position++;
         }
+        free(data);
         recordManager.closeFile(handle);
 
         return recordManager.createFile(tableName);
@@ -111,7 +109,7 @@ namespace PeterDB {
         handle = FileHandle();
 
         // Get the columns RIDs for this table
-        int columnTableId = -1;
+        char *columnTableId = (char *) malloc(sizeof(tableId) + 1);
         vector<Attribute> columnsDescriptor = getColumnsDescriptor();
 
         char *tableFilter = (char *)malloc(sizeof(tableId) + 1);
@@ -121,7 +119,7 @@ namespace PeterDB {
         vector<RID> columnsToDelete;
         RBFM_ScanIterator rbfmScanner;
         recordManager.scan(handle, columnsDescriptor, "table-id", EQ_OP, tableFilter, vector<string>(1, "table-id"), rbfmScanner);
-        while (rbfmScanner.getNextRecord(rid, &columnTableId) != RBFM_EOF)
+        while (rbfmScanner.getNextRecord(rid, columnTableId) != RBFM_EOF)
             columnsToDelete.push_back(rid);
         rbfmScanner.close();
         recordManager.closeFile(handle);
@@ -132,7 +130,6 @@ namespace PeterDB {
         for (RID colRid : columnsToDelete)
             recordManager.deleteRecord(handle, columnsDescriptor, colRid);
         recordManager.closeFile(handle);
-        free(tableFilter);
 
         // Delete file
         return recordManager.destroyFile(tableName);
@@ -157,13 +154,13 @@ namespace PeterDB {
         char* data = (char*) malloc(COLUMN_RECORD_MAX_SIZE);
         while (scanner.getNextRecord(rid, data) != RBFM_EOF) {
             Attribute0 column = parseColumnAttribute(data);
-            if (SYSTEM_COLUMN_TYPE == column.columnType)
+            if (SYSTEM_COLUMN_TYPE == column.columnFlag)
                 continue;
             attrs.push_back(column.attribute);
         }
         scanner.close();
         recordManager.closeFile(handle);
-        free(tableFilter);
+//        free(tableFilter);
 
         return attrs.empty() ? -1 : 0;
     }
@@ -298,7 +295,7 @@ namespace PeterDB {
         schema.emplace_back("column-name");
         schema.emplace_back("column-type");
         schema.emplace_back("column-length");
-        schema.emplace_back("column-type");
+        schema.emplace_back("column-flag");
         return schema;
     }
 
@@ -306,31 +303,31 @@ namespace PeterDB {
         int nameLength = 0;
         int copiedLength = 1; // Skip null byte since we should not have nulls in Columns table anyway
         CopyUtils::copyAttribute(data, &nameLength, copiedLength, sizeof(nameLength));
-        char *name = (char *) malloc(nameLength);
+        char *name = (char *) malloc(nameLength + 1);
         CopyUtils::copyAttribute(data, name, copiedLength, nameLength);
-        int type, length, columnType;
+        name[nameLength] = '\0';
+        int type, length, columnFlag;
         CopyUtils::copyAttribute(data, &type, copiedLength, sizeof(type));
         CopyUtils::copyAttribute(data, &length, copiedLength, sizeof(length));
-        CopyUtils::copyAttribute(data, &columnType, copiedLength, sizeof(columnType));
+        CopyUtils::copyAttribute(data, &columnFlag, copiedLength, sizeof(columnFlag));
 
         Attribute0 column;
         column.attribute.name = string (name);
         column.attribute.type = static_cast<AttrType>(type);
         column.attribute.length = length;
-        column.columnType = columnType;
+        column.columnFlag = columnFlag;
         return column;
     }
 
-    char* RelationManager::getStaticTableRecord(int id, const string& name, const string& fileName) {
-        return getTableRecord(id, name, fileName, SYSTEM_TABLE_TYPE); // 1 table type means system table
+    void RelationManager::getStaticTableRecord(int id, const string& name, const string& fileName, char* data) {
+        getTableRecord(id, name, fileName, SYSTEM_TABLE_TYPE, data); // 1 table type means system table
     }
 
-    char* RelationManager::getTableRecord(int id, const string &name, const string &fileName, int tableType) {
+    void RelationManager::getTableRecord(int id, const string &name, const string &fileName, int tableType, char* data) {
         int copiedLength = 0;
         char nullMap = 0;
         int length = name.length();
         memset(&nullMap, 0, 1);
-        char* data = (char*) malloc(sizeof(id) + sizeof(length) * 2 + name.length() + fileName.length() + sizeof(int));
         copyData(data, &nullMap, copiedLength, 1);
         copyData(data, &id, copiedLength, sizeof(id));
         copyData(data, &length, copiedLength, sizeof(length));
@@ -339,21 +336,18 @@ namespace PeterDB {
         copyData(data, &length, copiedLength, sizeof(length));
         copyData(data, (char*)fileName.c_str(), copiedLength, length);
         copyData(data, &tableType, copiedLength, 4);
-        return data;
     }
 
-    char* RelationManager::getStaticColumnRecord(int id, const Attribute &attribute, int position) {
-        return getColumnRecord(id, attribute, position, 0); // 1 column flag type means system column
+    void RelationManager::getStaticColumnRecord(int id, const Attribute &attribute, int position, char* data) {
+        getColumnRecord(id, attribute, position, 0, data); // 1 column flag type means system column
     }
 
-    char* RelationManager::getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag) {
+    void RelationManager::getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag, char* data) {
         int copiedLength = 0;
         char nullMap = 0;
         int length = attribute.name.length();
         int columnType = attribute.type;
         memset(&nullMap, 0, 1);
-        char* data = (char*) malloc(sizeof(id) + sizeof(length) + attribute.name.length() + sizeof(attribute.length)
-                                    + sizeof(columnType) + sizeof(position) + sizeof(columnFlag));
         copyData(data, &nullMap, copiedLength, 1);
         copyData(data, &id, copiedLength, sizeof(id));
 
@@ -361,12 +355,11 @@ namespace PeterDB {
         copyData(data, (char*)attribute.name.c_str(), copiedLength, length);
 
         int attributeLength = attribute.length;
-        copyData(data, &attributeLength, copiedLength, sizeof(attribute.length));
         copyData(data, &columnType, copiedLength, sizeof(columnType));
+        copyData(data, &attributeLength, copiedLength, sizeof(attribute.length));
 
         copyData(data, &position, copiedLength, sizeof(position));
         copyData(data, &columnFlag, copiedLength, sizeof(columnFlag));
-        return data;
     }
 
     void RelationManager::copyData(void* data, void* newData, int& copiedLength, int newLength) {

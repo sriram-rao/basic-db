@@ -264,18 +264,15 @@ namespace PeterDB {
         file.readPage(pageNum, pageData);
 
         // Read slot directory
-        short recordCount;
-        short freeBytes;
-        memcpy(&recordCount, pageData + PAGE_SIZE - sizeof(short), sizeof(short));
-        memcpy(&freeBytes, pageData + PAGE_SIZE - sizeof(short) * 2, sizeof(short));
-        size_t slotSize = sizeof(Slot) * recordCount;
-        vector<Slot> slots;
-        slots.insert(slots.begin(), recordCount, { 0, 0 });
-        memcpy(slots.data(), pageData + PAGE_SIZE - sizeof(short) * 2 - slotSize, slotSize);
-        SlotDirectory dir = SlotDirectory(freeBytes, recordCount, slots);
+        SlotDirectory dir;
+        memcpy(&dir.recordCount, pageData + PAGE_SIZE - sizeof(short), sizeof(short));
+        memcpy(&dir.freeSpace, pageData + PAGE_SIZE - sizeof(short) * 2, sizeof(short));
+        int slotSize = sizeof(Slot) * dir.recordCount;
+        dir.slots.insert(dir.slots.begin(), dir.recordCount, { 0, 0 });
+        memcpy(dir.slots.data(), pageData + PAGE_SIZE - sizeof(short) * 2 - slotSize, slotSize);
 
         // Read records as array
-        u_short recordsSize = PAGE_SIZE - sizeof(short) * 2 - slotSize - freeBytes;
+        u_short recordsSize = PAGE_SIZE - sizeof(short) * 2 - slotSize - dir.freeSpace;
         char* records = (char*) malloc(recordsSize);
         memcpy(records, pageData, recordsSize);
         free(pageData);

@@ -41,7 +41,7 @@ namespace PeterDB {
 
     typedef struct Attribute0 {
         Attribute attribute;
-        int columnType;
+        int columnFlag;
     } Attribute0;
 
     // Comparison Operator (NOT needed for part 1 of the project)

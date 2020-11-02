@@ -1,7 +1,8 @@
 #include "src/include/rbfm.h"
 #include <utility>
 #include <vector>
-#include <map>
+#include <string>
+#include <algorithm>
 #include <unordered_map>
 
 namespace PeterDB {
@@ -91,6 +92,8 @@ namespace PeterDB {
         }
         memcpy(data, nullBitMap, nullBytes);
         memcpy((char*)data + nullBytes, scanData, writeOffset);
+        free(recordData);
+        free(scanData);
 
         return 0;
     }

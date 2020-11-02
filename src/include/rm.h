@@ -86,10 +86,10 @@ namespace PeterDB {
         static RecordBasedFileManager& recordManager;
         static std::vector<Attribute> getTablesDescriptor();
         static std::vector<Attribute> getColumnsDescriptor();
-        static char* getStaticTableRecord(int id, const string& name, const string& fileName);
-        static char* getTableRecord(int id, const string& name, const string& fileName, int tableType);
-        static char* getStaticColumnRecord(int id, const Attribute &attribute, int position);
-        static char* getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag);
+        static void getStaticTableRecord(int id, const string& name, const string& fileName, char* data);
+        static void getTableRecord(int id, const string& name, const string& fileName, int tableType, char* data);
+        static void getStaticColumnRecord(int id, const Attribute &attribute, int position, char* data);
+        static void getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag, char* data);
         static vector<string> getAttributeSchema();
         static Attribute0 parseColumnAttribute(char* data);
         static void copyData(void* data, void* newData, int& copiedLength, int newLength);

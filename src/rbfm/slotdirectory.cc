@@ -9,7 +9,7 @@ namespace PeterDB {
     SlotDirectory::SlotDirectory(short freeSpace, short recordCount, vector<Slot> slots) {
         this->freeSpace = freeSpace;
         this->recordCount = recordCount;
-        this->slots = std::move(slots);
+        this->slots = slots;
     }
 
     SlotDirectory::~SlotDirectory() = default;
