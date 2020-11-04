@@ -37,7 +37,8 @@ namespace PeterDB {
     }
 
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
-        Page page = RecordBasedFileManager::readPage(pageNum, fileHandle);
+        Page page;
+        RecordBasedFileManager::readPage(pageNum, page, fileHandle);
         if (!incrementRid(page))
             return RBFM_EOF;
 
@@ -51,18 +52,16 @@ namespace PeterDB {
         if (!conditionMet(record))
             return getNextRecord(rid, data);
 
-        int recordLength = page.directory.getRecordLength(slotNum);
-        char* recordData = (char*) malloc(recordLength);
+        char* recordData = (char*) malloc(PAGE_SIZE);
         RecordBasedFileManager::instance().readRecord(fileHandle, recordDescriptor, rid, recordData);
 
         // Null bitmap
-        int readOffset = ceil((float)recordDescriptor.size() / 8),
-            writeOffset = 0;
-        int columnIndex = -1, currentIndex = -1;
         int nullBytes = ceil((float)attributeNames.size() / 8);
+        int readOffset = ceil((float)recordDescriptor.size() / 8),
+            writeOffset = nullBytes;
+        int columnIndex = -1, currentIndex = -1;
         char nullBitMap [nullBytes];
         std::memset(nullBitMap, 0, nullBytes);
-        char* scanData = (char*) malloc(recordLength);
 
         // Project columns
         for (auto &attr : recordDescriptor) {
@@ -82,18 +81,16 @@ namespace PeterDB {
                 nullBitMap[currentIndex / 8] = nullBitMap[currentIndex / 8] | (1 << (7 - currentIndex % 8));
 
             if (TypeVarChar == attr.type) {
-                memcpy(scanData + writeOffset, &fieldLength, sizeof(fieldLength));
+                memcpy((char*)data + writeOffset, &fieldLength, sizeof(fieldLength));
                 writeOffset += sizeof(fieldLength);
             }
 
-            memcpy(scanData + writeOffset, recordData + readOffset, fieldLength);
+            memcpy((char*)data + writeOffset, recordData + readOffset, fieldLength);
             writeOffset += fieldLength;
             readOffset += fieldLength;
         }
         memcpy(data, nullBitMap, nullBytes);
-        memcpy((char*)data + nullBytes, scanData, writeOffset);
         free(recordData);
-        free(scanData);
 
         return 0;
     }
@@ -113,7 +110,7 @@ namespace PeterDB {
         return false;
     }
 
-    bool RBFM_ScanIterator::conditionMet(Record record) {
+    bool RBFM_ScanIterator::conditionMet(Record &record) {
         if (conditionAttribute.empty())
             return true;
 

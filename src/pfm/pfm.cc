@@ -75,13 +75,12 @@ namespace PeterDB {
 
     RC FileHandle::readPage(PageNum pageNum, void *data) {
         if (getNumberOfPages() < pageNum) return -1;
-        char* bytes = new char[PAGE_SIZE];
+        char bytes[PAGE_SIZE];
         if (file.eof())
             file.clear();
         file.seekg((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE, ios::beg);
         file.read(bytes, PAGE_SIZE);
         std::memcpy(data, bytes, PAGE_SIZE);
-        delete[] bytes;
         readPageCounter++;
         return 0;
     }
@@ -172,7 +171,7 @@ namespace PeterDB {
         file.write(reinterpret_cast<char *>(counters), sizeof(counters));
         file.write(reinterpret_cast<char *>(pageSpaceMap.data()), sizeof(short) * pageSpaceMap.size());  //TODO: Handle when map becomes too big for one page
         int spaceToReserve = PAGE_SIZE * HIDDEN_PAGE_COUNT - sizeof(counters) - sizeof(short) * pageSpaceMap.size();
-        char* junk = new char[spaceToReserve];
+        char junk[spaceToReserve];
         file.write(junk, spaceToReserve);
         file.flush();
         return 0;

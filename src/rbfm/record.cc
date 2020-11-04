@@ -2,13 +2,47 @@
 #include <cstring>
 
 namespace PeterDB {
-    Record::Record() = default;
+    Record::Record() {
+        this->values = (char *)malloc(1);
+    }
 
-    Record::Record(RID id, short countOfAttributes, vector<short> offsets, char* values) {
-        this->rid = id;
+    Record::Record(RID newId, short countOfAttributes, vector<short> newOffsets, char* newValues) {
+        this->rid = newId;
         this->attributeCount = countOfAttributes;
-        this->offsets = offsets;
-        this->values = values;
+        this->offsets = newOffsets;
+
+        int dataSize = 0;
+        int offsetCount = countOfAttributes == -1 ? 2 : countOfAttributes;
+        int metadataSize = sizeof(short) + sizeof(short) * offsetCount;
+        for (int i = offsetCount - 1; i >= 0; i--) {
+            if (newOffsets[i] == -1) continue;
+            dataSize = newOffsets[i] - metadataSize;
+            break;
+        }
+        this->values = (char *) malloc(dataSize);
+        memcpy(this->values, newValues, dataSize);
+    }
+
+    Record::Record(char* bytes) {
+        this->populateMetadata(bytes);
+        this->populateData(bytes);
+    }
+
+    Record & Record::operator=(const Record &other) {
+        this->rid = other.rid;
+        this->attributeCount = other.attributeCount;
+        this->offsets = other.offsets;
+
+        int dataSize = 0;
+        int offsetCount = other.attributeCount == -1 ? 2 : other.attributeCount;
+        int metadataSize = sizeof(short) + sizeof(short) * offsetCount;
+        for (int i = offsetCount - 1; i >= 0; i--) {
+            if (other.offsets[i] == -1) continue;
+            dataSize = other.offsets[i] - metadataSize;
+            break;
+        }
+        memcpy(this->values, other.values, dataSize);
+        return *this;
     }
 
     int Record::getAttributeLength(int index) {
@@ -38,21 +72,14 @@ namespace PeterDB {
         return true;
     }
 
-    Record Record::fromBytes(unsigned char* bytes) {
-        Record r = Record();
-        r.populateMetadata(bytes);
-        r.populateData(bytes);
-        return r;
-    }
-
-    void Record::populateMetadata(unsigned char* bytes){
+    void Record::populateMetadata(char* bytes){
         memcpy(&this->attributeCount, bytes, sizeof(short));
         int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
         offsets = vector<short>(offsetCount, 0);
         memcpy(offsets.data(), bytes + sizeof(short), sizeof(short) * offsetCount);
     }
 
-    void Record::populateData(unsigned char* bytes){
+    void Record::populateData(char* bytes){
         // Assumes metadata has been populated
         unsigned long dataSize = 0;
         int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
@@ -62,19 +89,16 @@ namespace PeterDB {
             dataSize = offsets[i] - metadataSize;
             break;
         }
-        char* data = (char*) malloc(dataSize);
-        memcpy(data, bytes + metadataSize, dataSize);
-        this->values = data;
+        this->values = (char*) malloc(dataSize);
+        memcpy(this->values, bytes + metadataSize, dataSize);
     }
 
-    unsigned char* Record::toBytes(u_short recordLength) {
-        int attributeCount = this->attributeCount == -1 ? 2 : this->attributeCount;
-        u_short dataSize = recordLength - sizeof(short) - sizeof(short) * attributeCount;
-        unsigned char* byteArray = (unsigned char*) malloc(recordLength);
-        memcpy(byteArray, &this->attributeCount, sizeof(short));
-        memcpy(byteArray + sizeof(short), offsets.data(), sizeof(short) * attributeCount);
-        memcpy(byteArray + sizeof(short) + sizeof(short) * attributeCount, values, dataSize);
-        return byteArray;
+    void Record::toBytes(u_short recordLength, char* bytes) {
+        int fieldCount = this->attributeCount == -1 ? 2 : this->attributeCount;
+        u_short dataSize = recordLength - sizeof(short) - sizeof(short) * fieldCount;
+        memcpy(bytes, &this->attributeCount, sizeof(short));
+        memcpy(bytes + sizeof(short), offsets.data(), sizeof(short) * fieldCount);
+        memcpy(bytes + sizeof(short) + sizeof(short) * fieldCount, values, dataSize);
     }
 
     bool Record::absent() const {
@@ -91,5 +115,7 @@ namespace PeterDB {
         return { pageNum, slotNum };
     }
 
-    Record::~Record() = default;
+    Record::~Record() {
+        free(values);
+    }
 }

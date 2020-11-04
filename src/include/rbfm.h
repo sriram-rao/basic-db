@@ -66,19 +66,19 @@ namespace PeterDB {
 
         RID rid{};
         Record();
-
+        explicit Record(char *);
         Record(RID id, short countOfAttributes, vector<short> fieldOffsets, char* values);
+        Record & operator= (const Record &other);
 
         bool readAttribute(int index, void* data);
         int getAttributeLength(int index);
-        unsigned char* toBytes(u_short recordLength);
-        static Record fromBytes(unsigned char *);
-        void populateMetadata(unsigned char *);
-        void populateData(unsigned char *);
+        void toBytes(u_short recordLength, char* bytes);
+        void populateMetadata(char *);
+        void populateData(char *);
         bool absent() const;                                // tells us whether this record's bytes have data
-        RID getNewRid() const;                               // fetches the new RID if this record has been moved
+        RID getNewRid() const;                              // fetches the new RID if this record has been moved
 
-        virtual ~Record();
+        ~Record();
     };
 
     class SlotDirectory {
@@ -87,8 +87,9 @@ namespace PeterDB {
         short freeSpace;
         short recordCount;
         SlotDirectory();
-        SlotDirectory(short freeSpace, short recordCount, vector<Slot> slots);
-        virtual ~SlotDirectory();
+        SlotDirectory(short freeSpace, short recordCount);
+        SlotDirectory& operator= (const SlotDirectory& other);
+        ~SlotDirectory();
 
         RC addSlot(unsigned short slotNum, short offset, short recordLength);
         RC setSlot(unsigned short slotNum, short recordLength);
@@ -101,8 +102,8 @@ namespace PeterDB {
     public:
         SlotDirectory directory;
         char* records;
-        RC addRecord(unsigned short slotNum, Record record, unsigned short recordLength);
-        RC updateRecord(unsigned short slotNum, Record record, short newLength);
+        RC addRecord(unsigned short slotNum, Record &record, unsigned short recordLength);
+        RC updateRecord(unsigned short slotNum, Record &record, short newLength);
         RC deleteRecord(unsigned short slotNum);
         bool checkValid();
         bool checkRecordDeleted(unsigned short slotNum);
@@ -110,7 +111,7 @@ namespace PeterDB {
         unsigned short getFreeSlot();
 
         Page();
-        Page(SlotDirectory &directory, char* records);
+        Page& operator= (const Page& other);
         ~Page();
 
     private:
@@ -164,7 +165,7 @@ namespace PeterDB {
         static const unordered_map<int, compare> comparerMap;
 
         bool incrementRid(Page &page);  // returns true if incrementation was successful
-        bool conditionMet(Record record);
+        bool conditionMet(Record &record);
 
         // Comparisons
         static bool checkEqual(AttrType type, const void* value1, const void* value2);
@@ -250,7 +251,7 @@ namespace PeterDB {
                 const std::vector<std::string> &attributeNames, // a list of projected attributes
                 RBFM_ScanIterator &rbfm_ScanIterator);
 
-        static Page readPage(PageNum pageNum, FileHandle &file);
+        static RC readPage(PageNum pageNum, Page &page, FileHandle &file);
 
         static void getRecordProperties(const std::vector<Attribute> &recordDescriptor, const void *data,
                                       short &recordLength, vector<short> &offsets, int* fieldInfo);
@@ -277,11 +278,11 @@ namespace PeterDB {
         static string parseTypeInt(const void* data, int& startOffset, int length);
         static string parseTypeReal(const void* data, int& startOffset, int length);
         static string parseTypeVarchar(const void* data, int& startOffset, int length);
-        static Page findRecord(RID& rid, FileHandle& fileHandle);
+        static void findRecord(RID& rid, FileHandle& fileHandle, Page &page);
         static void deepDelete(RID rid, FileHandle& fileHandle);
         static void addRecordToPage(Page &page, Record &record, RID rid, unsigned pageDataSize, short recordLength);
         static Record getRidPlaceholder(RID rid);
-        static void updateRid(RID rid, Record newRidData, FileHandle &fileHandle);
+        static void updateRid(RID rid, Record &newRidData, FileHandle &fileHandle);
     };
 
 } // namespace PeterDB

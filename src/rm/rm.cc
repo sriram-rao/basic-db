@@ -131,6 +131,9 @@ namespace PeterDB {
             recordManager.deleteRecord(handle, columnsDescriptor, colRid);
         recordManager.closeFile(handle);
 
+        free(columnTableId);
+        free(tableFilter);
+
         // Delete file
         return recordManager.destroyFile(tableName);
     }
@@ -160,7 +163,7 @@ namespace PeterDB {
         }
         scanner.close();
         recordManager.closeFile(handle);
-//        free(tableFilter);
+        free(tableFilter);
 
         return attrs.empty() ? -1 : 0;
     }
@@ -316,6 +319,7 @@ namespace PeterDB {
         column.attribute.type = static_cast<AttrType>(type);
         column.attribute.length = length;
         column.columnFlag = columnFlag;
+        free(name);
         return column;
     }
 
@@ -391,6 +395,7 @@ namespace PeterDB {
 
         rbfmScanner.close();
         recordManager.closeFile(handle);
+        free(tableFilter);
         return tableId <= 2 ? -1 : tableId;
     }
 
@@ -419,6 +424,7 @@ namespace PeterDB {
         rbfmScanner.close();
         recordManager.closeFile(handle);
 
+        free(tableId);
         return maxId;
     }
 

@@ -6,11 +6,12 @@
 namespace PeterDB {
     SlotDirectory::SlotDirectory() {}
 
-    SlotDirectory::SlotDirectory(short freeSpace, short recordCount, vector<Slot> slots) {
+    SlotDirectory::SlotDirectory(short freeSpace, short recordCount) {
         this->freeSpace = freeSpace;
         this->recordCount = recordCount;
-        this->slots = slots;
     }
+
+    SlotDirectory & SlotDirectory::operator=(const SlotDirectory &other) = default;
 
     SlotDirectory::~SlotDirectory() = default;
 

@@ -5,44 +5,40 @@ using namespace std;
 
 namespace PeterDB {
     Page::Page() {
-        this->records = (char*) malloc(sizeof(char));
-        vector<Slot> slots;
-        this->directory = SlotDirectory(PAGE_SIZE - sizeof(short) * 2, 0, slots);
+        this->records = (char*) malloc(PAGE_SIZE);
+        this->directory = SlotDirectory(PAGE_SIZE - sizeof(short) * 2, 0);
     }
 
-    Page::Page(SlotDirectory &directory, char* records) {
-        this->directory = directory;
-        this->records = records;
+    Page& Page::operator=(const Page &other) {
+        this->directory = other.directory;
+        memcpy(this->records, other.records, PAGE_SIZE);
+        return *this;
     }
 
-    RC Page::addRecord(unsigned short slotNum, Record record, unsigned short recordLength) {
-        int dataSize = getDataRecordCount() == 0 ? (short)0 : PAGE_SIZE - sizeof(short) * 2 -
-                sizeof(Slot) * this->directory.slots.size() - this->directory.freeSpace;
-        char* newBytes = (char *) malloc(dataSize + recordLength);
-
-        // To copy data to the left of the record
+    RC Page::addRecord(unsigned short slotNum, Record &record, unsigned short recordLength) {
+        // To set to the start of the record
         Slot leftSlot = findFilledSlotBetween(0, slotNum - 1);
-        int copiedLength = 0;
-        if (leftSlot.length > 0) {
-            memcpy(newBytes, this->records, leftSlot.offset + leftSlot.length);
-            copiedLength += leftSlot.offset + leftSlot.length;
-        }
-        memcpy(newBytes + copiedLength, record.toBytes(recordLength), recordLength);
-        copiedLength += recordLength;
+        int copiedLength = leftSlot.length > 0 ? leftSlot.offset + leftSlot.length : 0;
 
         // To copy data after slot with addition
         Slot rightSlot = findFilledSlotBetween(slotNum + 1, directory.slots.size() - 1);
-        if (rightSlot.length > 0)
-            memcpy(newBytes + copiedLength, records + leftSlot.offset + leftSlot.length,
-               rightSlot.offset + rightSlot.length - (leftSlot.offset + leftSlot.length));
+        if (rightSlot.length > 0) {
+            memcpy(this->records + copiedLength + recordLength, records + leftSlot.offset + leftSlot.length,
+                   rightSlot.offset + rightSlot.length - (leftSlot.offset + leftSlot.length));
+            for (int i = slotNum + 1; i < directory.recordCount; ++i)
+                if (directory.slots[i].offset != -1)
+                    directory.slots[i].offset += recordLength;
+        }
 
-        free(this->records);
-        this->records = newBytes;
+        char *recordBytes = (char *) malloc(recordLength);
+        record.toBytes(recordLength, recordBytes);
+        memcpy(this->records + copiedLength, recordBytes, recordLength);
+        free(recordBytes);
         this->directory.freeSpace = this->directory.freeSpace - recordLength;
         return 0;
     }
 
-    RC Page::updateRecord(unsigned short slotNum, Record record, short newLength) {
+    RC Page::updateRecord(unsigned short slotNum, Record &record, short newLength) {
         // Shift records to the right
         if (slotNum + 1 < directory.recordCount) {
             Slot lastSlot = findFilledSlotBetween(slotNum + 1, directory.recordCount - 1);
@@ -52,11 +48,15 @@ namespace PeterDB {
                         currentSlot.offset + newLength, shiftSize);
 
             for (int i = slotNum + 1; i < directory.recordCount; ++i)
-                directory.slots[i].offset += (newLength - currentSlot.length);
+                if (directory.slots[i].offset != -1)
+                    directory.slots[i].offset += (newLength - currentSlot.length);
         }
         // Update record in place
-        memcpy(records + directory.getRecordOffset(slotNum), record.toBytes(newLength), newLength);
-        directory.freeSpace += (newLength - directory.getRecordLength(slotNum));
+        char *recordBytes = (char *) malloc(newLength);
+        record.toBytes(newLength, recordBytes);
+        memcpy(records + directory.getRecordOffset(slotNum), recordBytes, newLength);
+        free(recordBytes);
+        directory.freeSpace -= (newLength - directory.getRecordLength(slotNum));
         directory.updateSlot(slotNum, newLength);
         return 0;
     }
@@ -73,7 +73,9 @@ namespace PeterDB {
 
             // Update offsets of moved records
             for (int i = slotNum + 1; i < directory.recordCount; ++i)
-                directory.slots[i].offset -= recordSlot.length;
+                if (directory.slots[i].offset != -1)
+                    directory.slots[i].offset -= recordSlot.length;
+
         }
 
         // Update deleted records slot information to -1 in all the slots referring to it
@@ -89,9 +91,9 @@ namespace PeterDB {
             return Record({ PAGE_SIZE * 2, PAGE_SIZE  * 2 }, -1, vector<short>(0), nullptr);
 
         Slot recordSlot = this->directory.slots[slotNum];
-        unsigned char* recordData = (unsigned char*) malloc(recordSlot.length);
+        char* recordData = (char*) malloc(recordSlot.length); // Need to free
         memcpy(recordData, records + recordSlot.offset, recordSlot.length);
-        return Record::fromBytes(recordData);
+        return Record(recordData);
     }
 
     bool Page::checkRecordDeleted(unsigned short slotNum) {
@@ -108,15 +110,6 @@ namespace PeterDB {
     }
 
     void Page::moveRecords(int moveStartOffset, int destinationOffset, int length) {
-        if (destinationOffset > moveStartOffset)
-        {
-            short dataSize = getDataRecordCount() == 0 ? (short)0 :
-                    PAGE_SIZE - sizeof(short) * 2 - sizeof(Slot) * directory.slots.size() - directory.freeSpace;
-            char *newBytes = (char *) malloc(dataSize + destinationOffset - moveStartOffset);
-            memcpy(newBytes, records, dataSize);
-            free(records);
-            records = newBytes;
-        }
         char *dataToShift = (char *) malloc(length);
         std::memcpy(dataToShift, this->records + moveStartOffset, length);
         std::memcpy(this->records + destinationOffset, dataToShift, length);
@@ -143,5 +136,7 @@ namespace PeterDB {
         return { 0, 0 };
     }
 
-    Page::~Page() = default;
+    Page::~Page() {
+        free(this->records);
+    }
 }
