@@ -140,7 +140,7 @@ namespace PeterDB {
     }
 
     RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attribute> &attrs) {
-        return getAttributes(tableName, attrs, false);
+        return getAttributes(tableName, attrs, true);
     }
 
     RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attribute> &attrs, bool allowSystemTables) {
@@ -174,7 +174,7 @@ namespace PeterDB {
 
     RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
         vector<Attribute> tupleDescriptor;
-        if (getAttributes(tableName, tupleDescriptor) == -1)
+        if (getAttributes(tableName, tupleDescriptor, false) == -1)
             return -1;
 
         FileHandle handle;
@@ -200,7 +200,7 @@ namespace PeterDB {
 
     RC RelationManager::updateTuple(const std::string &tableName, const void *data, const RID &rid) {
         vector<Attribute> tupleDescriptor;
-        if (getAttributes(tableName, tupleDescriptor) == -1)
+        if (getAttributes(tableName, tupleDescriptor, false) == -1)
             return -1;
 
         FileHandle handle;
