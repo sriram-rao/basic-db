@@ -147,7 +147,6 @@ namespace PeterDB {
         findRecord(trueId, fileHandle, page);
         if (!page.checkValid()) // Already deleted, nothing to do
             return 0;
-//        page.deleteRecord(trueId.slotNum);
         deepDelete(rid, fileHandle);
         return 0;
     }

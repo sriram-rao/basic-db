@@ -105,7 +105,9 @@ namespace PeterDB {
     }
 
     bool Page::checkRecordDeleted(unsigned short slotNum) {
-        return this->directory.slots[slotNum].length == -1;
+        if (directory.slots.size() > slotNum)
+            return this->directory.slots.at(slotNum).length == -1;
+        return true;
     }
 
     unsigned short Page::getFreeSlot() {
