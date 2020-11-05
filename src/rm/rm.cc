@@ -99,6 +99,9 @@ namespace PeterDB {
         // Get table ID
         FileHandle handle; RID rid;
         int tableId = getTableId(tableName, rid);
+
+        if (tableId == -1)
+            return 0;
         if (tableId <= 2)
             return -1;
 
