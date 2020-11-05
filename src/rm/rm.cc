@@ -100,8 +100,6 @@ namespace PeterDB {
         FileHandle handle; RID rid;
         int tableId = getTableId(tableName, rid);
 
-        if (tableId == -1)
-            return 0;
         if (tableId <= 2)
             return -1;
 
@@ -446,7 +444,9 @@ namespace PeterDB {
         FileHandle handle;
         vector<Attribute> tablesDescriptor = getTablesDescriptor();
         RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
-        recordManager.openFile(TABLE_FILE_NAME, handle);
+        if (recordManager.openFile(TABLE_FILE_NAME, handle) == -1)
+            return -1;
+
         RBFM_ScanIterator rbfmScanner;
         recordManager.scan(handle, tablesDescriptor, "", EQ_OP, nullptr, vector<string>(1, "table-id"), rbfmScanner);
         int maxId = -1;
