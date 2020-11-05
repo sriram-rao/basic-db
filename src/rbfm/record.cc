@@ -3,7 +3,10 @@
 
 namespace PeterDB {
     Record::Record() {
-        this->values = (char *)malloc(1);
+        this->attributeCount = 0;
+        this->rid = { 0, 0 };
+        this->offsets = vector<short>(0);
+        this->values = nullptr;
     }
 
     Record::Record(RID newId, short countOfAttributes, vector<short> newOffsets, char* newValues) {
@@ -19,8 +22,11 @@ namespace PeterDB {
             dataSize = newOffsets[i] - metadataSize;
             break;
         }
-        this->values = (char *) malloc(dataSize);
-        memcpy(this->values, newValues, dataSize);
+        this->values = nullptr;
+        if (dataSize > 0) {
+            this->values = (char *) malloc(dataSize);
+            memcpy(this->values, newValues, dataSize);
+        }
     }
 
     Record::Record(char* bytes) {
@@ -41,6 +47,8 @@ namespace PeterDB {
             dataSize = other.offsets[i] - metadataSize;
             break;
         }
+        free(this->values);
+        this->values = (char *) malloc(dataSize);
         memcpy(this->values, other.values, dataSize);
         return *this;
     }
@@ -95,7 +103,14 @@ namespace PeterDB {
 
     void Record::toBytes(u_short recordLength, char* bytes) {
         int fieldCount = this->attributeCount == -1 ? 2 : this->attributeCount;
-        u_short dataSize = recordLength - sizeof(short) - sizeof(short) * fieldCount;
+        unsigned long dataSize = 0;
+        int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
+        int metadataSize = sizeof(short) + sizeof(short) * offsetCount;
+        for (int i = offsetCount - 1; i >= 0; i--) {
+            if (offsets[i] == -1) continue;
+            dataSize = offsets[i] - metadataSize;
+            break;
+        }
         memcpy(bytes, &this->attributeCount, sizeof(short));
         memcpy(bytes + sizeof(short), offsets.data(), sizeof(short) * fieldCount);
         memcpy(bytes + sizeof(short) + sizeof(short) * fieldCount, values, dataSize);

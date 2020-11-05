@@ -9,8 +9,15 @@ namespace PeterDB {
         this->directory = SlotDirectory(PAGE_SIZE - sizeof(short) * 2, 0);
     }
 
+    Page::Page(short recordCount, short freeSpace) {
+        this->records = (char*) malloc(PAGE_SIZE);
+        this->directory = SlotDirectory(freeSpace, recordCount);
+    }
+
     Page& Page::operator=(const Page &other) {
-        this->directory = other.directory;
+        this->directory.recordCount = other.directory.recordCount;
+        this->directory.freeSpace = other.directory.freeSpace;
+        this->directory.slots = other.directory.slots;
         memcpy(this->records, other.records, PAGE_SIZE);
         return *this;
     }
@@ -86,14 +93,15 @@ namespace PeterDB {
         return 0;
     }
 
-    Record Page::getRecord(unsigned short slotNum) {
+    void Page::getRecord(unsigned short slotNum, Record &record) {
         if (checkRecordDeleted(slotNum))
-            return Record({ PAGE_SIZE * 2, PAGE_SIZE  * 2 }, -1, vector<short>(0), nullptr);
+            record = Record({ PAGE_SIZE * 2, PAGE_SIZE  * 2 }, -1, vector<short>(0), nullptr);
 
         Slot recordSlot = this->directory.slots[slotNum];
         char* recordData = (char*) malloc(recordSlot.length); // Need to free
         memcpy(recordData, records + recordSlot.offset, recordSlot.length);
-        return Record(recordData);
+        record = Record(recordData);
+        free(recordData);
     }
 
     bool Page::checkRecordDeleted(unsigned short slotNum) {

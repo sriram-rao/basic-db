@@ -39,10 +39,10 @@ namespace PeterDB {
         AttrLength length; // attribute length
     } Attribute;
 
-    typedef struct Attribute0 {
-        Attribute attribute;
-        int columnFlag;
-    } Attribute0;
+//    typedef struct Attribute0 {
+//        Attribute attribute;
+//        int columnFlag;
+//    } Attribute0;
 
     // Comparison Operator (NOT needed for part 1 of the project)
     typedef enum {
@@ -56,11 +56,10 @@ namespace PeterDB {
     } CompOp;
 
     typedef string (*copy)(const void*, int&, int);
-    typedef bool (*compare)(AttrType, const void*, const void*);
 
     class Record {
     public:
-        short attributeCount;
+        short attributeCount{};
         vector<short> offsets;
         char* values;
 
@@ -88,8 +87,6 @@ namespace PeterDB {
         short recordCount;
         SlotDirectory();
         SlotDirectory(short freeSpace, short recordCount);
-        SlotDirectory& operator= (const SlotDirectory& other);
-        ~SlotDirectory();
 
         RC addSlot(unsigned short slotNum, short offset, short recordLength);
         RC setSlot(unsigned short slotNum, short recordLength);
@@ -107,10 +104,11 @@ namespace PeterDB {
         RC deleteRecord(unsigned short slotNum);
         bool checkValid();
         bool checkRecordDeleted(unsigned short slotNum);
-        Record getRecord(unsigned short slotNum);
+        void getRecord(unsigned short slotNum, Record &record);
         unsigned short getFreeSlot();
 
         Page();
+        Page(short recordCount, short freeSpace);
         Page& operator= (const Page& other);
         ~Page();
 
@@ -147,22 +145,24 @@ namespace PeterDB {
         // Never keep the results in the memory. When getNextRecord() is called,
         // a satisfying record needs to be fetched from the file.
         // "data" follows the same format as RecordBasedFileManager::insertRecord().
+
+//        RBFM_ScanIterator & operator= (const RBFM_ScanIterator &other);
+
         RC getNextRecord(RID &rid, void *data);
 
         RC close();
 
         void setFile(fstream&& file);
-
-    private:
         FileHandle fileHandle;
         unsigned pageNum;
         short slotNum;
+
+    private:
         std::vector<Attribute> recordDescriptor;
         std::string conditionAttribute;
         CompOp compOp;                  // comparison type such as "<" and "="
         void *value;                    // used in the comparison
         vector<string> attributeNames;  // a list of projected attributes
-        static const unordered_map<int, compare> comparerMap;
 
         bool incrementRid(Page &page);  // returns true if incrementation was successful
         bool conditionMet(Record &record);
@@ -171,7 +171,7 @@ namespace PeterDB {
         static bool checkEqual(AttrType type, const void* value1, const void* value2);
         static bool checkLessThan(AttrType type, const void* value1, const void* value2);
         static bool checkGreaterThan(AttrType type, const void* value1, const void* value2);
-        static void getStrings(AttrType type, const void* value1, const void* value2, string& s1, string& s2);
+//        static void getStrings(AttrType type, const void* value1, const void* value2, string& s1, string& s2);
     };
 
     class RecordBasedFileManager {
@@ -204,15 +204,10 @@ namespace PeterDB {
         // Insert a record into a file
         RC insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const void *data,
                         RID &rid);
-        RC insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, void *data,
-                        RID &rid);
 
         // Read a record identified by the given rid.
         RC
         readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid, void *data);
-
-        RC
-        readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,  void *data, RID &rid);
 
         // Print the record that is passed to this utility method.
         // This method will be mainly used for debugging/testing.
@@ -232,8 +227,6 @@ namespace PeterDB {
         // Assume the RID does not change after an update
         RC updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const void *data,
                         const RID &rid);
-        RC updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, void *data,
-                        RID &rid);
 
         // Read an attribute given its name and the rid.
         RC readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid,
@@ -259,7 +252,11 @@ namespace PeterDB {
         static Record prepareRecord(RID rid, const vector<Attribute> &recordDescriptor, const void *data, int recordLength,
                       vector<short> &offsets, int *fieldInfo);
 
-        static const unordered_map<int, copy> parserMap;
+//        static const unordered_map<int, copy> parserMap;
+        static int parseTypeInt(const void* data, int& startOffset, int length);
+        static float parseTypeReal(const void* data, int& startOffset, int length);
+        static string parseTypeVarchar(const void* data, int& startOffset);
+        static const int MIN_RECORD_SIZE = sizeof(short) * 3 + sizeof(RID);
 
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
@@ -268,16 +265,12 @@ namespace PeterDB {
         RecordBasedFileManager &operator=(const RecordBasedFileManager &);          // Prevent assignment
 
     private:
-        static const int MIN_RECORD_SIZE = sizeof(short) * 3 + sizeof(RID);
 
         static RC writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend);
         Page findFreePage(short bytesNeeded, FileHandle& fileHandle, unsigned &pageDataSize, unsigned &pageNum,
                           unsigned short &slotNum, bool &append);
         static int copyAttribute(const void* data, void* destination, int& startOffset, int length);
         static int copyAttribute(const void* data, void* destination, int& startOffset, int& destOffset, int length);
-        static string parseTypeInt(const void* data, int& startOffset, int length);
-        static string parseTypeReal(const void* data, int& startOffset, int length);
-        static string parseTypeVarchar(const void* data, int& startOffset, int length);
         static void findRecord(RID& rid, FileHandle& fileHandle, Page &page);
         static void deepDelete(RID rid, FileHandle& fileHandle);
         static void addRecordToPage(Page &page, Record &record, RID rid, unsigned pageDataSize, short recordLength);

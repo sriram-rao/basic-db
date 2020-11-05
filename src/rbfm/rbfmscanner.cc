@@ -6,26 +6,15 @@
 #include <unordered_map>
 
 namespace PeterDB {
-
-    const unordered_map<int, compare> RBFM_ScanIterator::comparerMap = {
-            { EQ_OP, &RBFM_ScanIterator::checkEqual },
-            { LT_OP, &RBFM_ScanIterator::checkLessThan },
-            { GT_OP, &RBFM_ScanIterator::checkGreaterThan },
-            { LE_OP, [](AttrType type, const void* v1, const void* v2) -> bool { return checkLessThan(type, v1, v2) || checkEqual(type, v1, v2); } },
-            { GE_OP, [](AttrType type, const void* v1, const void* v2) -> bool { return checkGreaterThan(type, v1, v2) || checkEqual(type, v1, v2); } },
-            { NE_OP, [](AttrType type, const void* v1, const void* v2) -> bool { return !checkEqual(type, v1, v2); } },
-            { NO_OP, [](AttrType type, const void* v1, const void* v2) -> bool { return true; } }
-    };
-
     RBFM_ScanIterator::RBFM_ScanIterator(std::vector<Attribute> recordDescriptor, std::string conditionAttribute,
                                          CompOp compOp, void *value, std::vector<std::string> attributeNames,
                                          FileHandle& fileHandle) {
-        this->recordDescriptor = std::move(recordDescriptor);
-        this->conditionAttribute = std::move(conditionAttribute);
+        this->recordDescriptor = recordDescriptor;
+        this->conditionAttribute = conditionAttribute;
         this->compOp = compOp;
         this->value = value;
-        this->attributeNames = std::move(attributeNames);
-        this->pageNum = 0,
+        this->attributeNames = attributeNames;
+        this->pageNum = 0;
         this->slotNum = -1;
         this->fileHandle = fileHandle;
         // Call setFile to move the fstream
@@ -36,6 +25,18 @@ namespace PeterDB {
         this->fileHandle.setFile(std::move(file));
     }
 
+//    RBFM_ScanIterator & RBFM_ScanIterator::operator= (const RBFM_ScanIterator &other) {
+//        this->recordDescriptor = other.recordDescriptor;
+//        this->conditionAttribute = other.conditionAttribute;
+//        this->compOp = other.compOp;
+//        this->value = other.value;
+//        this->attributeNames = other.attributeNames;
+//        this->pageNum = other.pageNum;
+//        this->slotNum = other.slotNum;
+//        this->fileHandle = other.fileHandle;
+//        return *this;
+//    }
+
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
         Page page;
         RecordBasedFileManager::readPage(pageNum, page, fileHandle);
@@ -45,7 +46,8 @@ namespace PeterDB {
         rid = { pageNum, static_cast<unsigned short>(slotNum) };
         if (page.checkRecordDeleted(slotNum))
             return getNextRecord(rid, data);
-        Record record = page.getRecord(slotNum);
+        Record record;
+        page.getRecord(slotNum, record);
         if (record.absent())
             return getNextRecord(rid, data);
 
@@ -125,9 +127,40 @@ namespace PeterDB {
         }
         char* data = (char*) malloc(length);
         int readSuccess = RecordBasedFileManager::instance().readAttribute(record, recordDescriptor, { pageNum, static_cast<unsigned short>(slotNum) }, conditionAttribute, data);
-        if (readSuccess != 0)
+        if (readSuccess != 0) {
+            free(data);
             return false; // if attribute isn't present, default is that the record doesn't match
-        return comparerMap.at(compOp)(type, value, data);
+        }
+
+        bool result = false;
+
+        switch(compOp) {
+            case EQ_OP:
+                result = checkEqual(type, value, data);
+                break;
+            case LT_OP:
+                result = checkLessThan(type, value, data);
+                break;
+            case LE_OP:
+                result = checkEqual(type, value, data) || checkLessThan(type, value, data);
+                break;
+            case GT_OP:
+                result = checkGreaterThan(type, value, data);
+                break;
+            case GE_OP:
+                result = checkGreaterThan(type, value, data) || checkEqual(type, value, data);
+                break;
+            case NE_OP:
+                result = !checkEqual(type, value, data);
+                break;
+            case NO_OP:
+                result = true;
+                break;
+            default:
+                break;
+        }
+        free(data);
+        return result;
     }
 
     RC RBFM_ScanIterator::close() {
@@ -140,42 +173,53 @@ namespace PeterDB {
     }
 
     bool RBFM_ScanIterator::checkEqual(AttrType type, const void *value1, const void *value2) {
-        string s1, s2;
-        getStrings(type, value1, value2, s1, s2);
-        if (TypeVarChar == type)
+        int startOffset = 1;
+        if ((((char *) value1)[0] & (1 << 7)) ||  (((char *) value2)[0] & (1 << 7)))
+            return false;
+        if (TypeVarChar == type) {
+            string s1 = RecordBasedFileManager::parseTypeVarchar(value1, startOffset);
+            startOffset = 1;
+            string s2 = RecordBasedFileManager::parseTypeVarchar(value2, startOffset);
             return s1 == s2;
+        }
 
-        float f1 = stof(s1), f2 = stof(s2);
+        float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
+        startOffset = 1;
+        float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
         return f1 == f2;
     }
 
     bool RBFM_ScanIterator::checkLessThan(AttrType type, const void *value1, const void *value2) {
-        string s1, s2;
-        getStrings(type, value1, value2, s1, s2);
-        if (TypeVarChar == type)
+        int startOffset = 1;
+        if ((((char *) value1)[0] & (1 << 7)) ||  (((char *) value2)[0] & (1 << 7)))
+            return false;
+        if (TypeVarChar == type) {
+            string s1 = RecordBasedFileManager::parseTypeVarchar(value1, startOffset);
+            startOffset = 1;
+            string s2 = RecordBasedFileManager::parseTypeVarchar(value2, startOffset);
             return s1 < s2;
+        }
 
-        float f1 = stof(s1), f2 = stof(s2);
+        float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
+        startOffset = 1;
+        float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
         return f1 < f2;
     }
 
     bool RBFM_ScanIterator::checkGreaterThan(AttrType type, const void *value1, const void *value2) {
-        string s1, s2;
-        getStrings(type, value1, value2, s1, s2);
-        if (TypeVarChar == type)
-            return s1 > s2;
-
-        float f1 = stof(s1), f2 = stof(s2);
-        return f1 > f2;
-    }
-
-    void RBFM_ScanIterator::getStrings(AttrType type, const void* value1, const void* value2, string& s1, string& s2) {
-        copy copyMethod = RecordBasedFileManager::parserMap.at(type);
         int startOffset = 1;
-        if (!(((char *) value1)[0] & (1 << 7)))
-            s1 = copyMethod(value1, startOffset, 4);
+        if ((((char *) value1)[0] & (1 << 7)) ||  (((char *) value2)[0] & (1 << 7)))
+            return false;
+        if (TypeVarChar == type) {
+            string s1 = RecordBasedFileManager::parseTypeVarchar(value1, startOffset);
+            startOffset = 1;
+            string s2 = RecordBasedFileManager::parseTypeVarchar(value2, startOffset);
+            return s1 > s2;
+        }
+
+        float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
         startOffset = 1;
-        if (!(((char *) value2)[0] & (1 << 7)))
-            s2 = copyMethod(value2, startOffset, 4);
+        float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
+        return f1 > f2;
     }
 }

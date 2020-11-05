@@ -160,7 +160,10 @@ namespace PeterDB {
     }
 
     bool FileHandle::exists(const std::string &fileName) {
-        if(fopen(fileName.c_str(), "r")) return true;
+        if (FILE *file = fopen(fileName.c_str(), "r")) {
+            fclose(file);
+            return true;
+        }
         return false;
     }
 
@@ -169,7 +172,8 @@ namespace PeterDB {
         file.seekp(0);
         unsigned counters[4] = { readPageCounter, writePageCounter, appendPageCounter, static_cast<unsigned>(pageSpaceMap.size()) };
         file.write(reinterpret_cast<char *>(counters), sizeof(counters));
-        file.write(reinterpret_cast<char *>(pageSpaceMap.data()), sizeof(short) * pageSpaceMap.size());  //TODO: Handle when map becomes too big for one page
+        if (!pageSpaceMap.empty())
+            file.write(reinterpret_cast<char *>(pageSpaceMap.data()), sizeof(short) * pageSpaceMap.size());  //TODO: Handle when map becomes too big for one page
         int spaceToReserve = PAGE_SIZE * HIDDEN_PAGE_COUNT - sizeof(counters) - sizeof(short) * pageSpaceMap.size();
         char junk[spaceToReserve];
         file.write(junk, spaceToReserve);

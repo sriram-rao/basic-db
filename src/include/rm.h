@@ -21,12 +21,18 @@ namespace PeterDB {
         // "data" follows the same format as RelationManager::insertTuple()
         RC getNextTuple(RID &rid, void *data);
 
-        void set(RBFM_ScanIterator &);
-
         RC close();
 
-    private:
         RBFM_ScanIterator rbfmScanner;
+
+        std::string tableName;
+        std::string conditionAttribute;
+        CompOp compOp;
+        void *value;
+        std::vector<std::string> attributeNames;
+        vector<Attribute> descriptor;
+        unsigned pageNum;
+        short slotNum;
     };
 
     typedef int (RecordBasedFileManager::*operateRecord)(FileHandle &handle, const vector<Attribute> &recordDescriptor,
@@ -46,6 +52,8 @@ namespace PeterDB {
         RC deleteTable(const std::string &tableName);
 
         RC getAttributes(const std::string &tableName, std::vector<Attribute> &attrs);
+
+        RC getAttributes(const std::string &tableName, std::vector<Attribute> &attrs, bool allowSystemTables);
 
         RC insertTuple(const std::string &tableName, const void *data, RID &rid);
 
@@ -83,7 +91,6 @@ namespace PeterDB {
         RelationManager &operator=(const RelationManager &);                // Prevent assignment
 
     private:
-        static RecordBasedFileManager& recordManager;
         static std::vector<Attribute> getTablesDescriptor();
         static std::vector<Attribute> getColumnsDescriptor();
         static void getStaticTableRecord(int id, const string& name, const string& fileName, char* data);
@@ -91,7 +98,7 @@ namespace PeterDB {
         static void getStaticColumnRecord(int id, const Attribute &attribute, int position, char* data);
         static void getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag, char* data);
         static vector<string> getAttributeSchema();
-        static Attribute0 parseColumnAttribute(char* data);
+        static Attribute parseColumnAttribute(char* data);
         static void copyData(void* data, void* newData, int& copiedLength, int newLength);
         int getTableId(const string &tableName, RID &tableRid);
         void makeTableIdFilter(int tableId, char* tableFilter);
