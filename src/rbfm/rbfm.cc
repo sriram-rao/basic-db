@@ -100,7 +100,7 @@ namespace PeterDB {
             }
             if (fieldSize == 0)
                 continue;
-            copyAttribute(record.values, data, sourceOffset, currentOffset, fieldSize); // fieldSize too high because recordDescriptor overwritten
+            copyAttribute(record.values, data, sourceOffset, currentOffset, fieldSize);
             nonNullIndex = columnPosition;
         }
 
@@ -124,10 +124,10 @@ namespace PeterDB {
 
             switch (recordDescriptor[i].type) {
                 case TypeInt:
-                    out << parseTypeInt(data, currentOffset, recordDescriptor[i].length);
+                    out << to_string(parseTypeInt(data, currentOffset, recordDescriptor[i].length));
                     break;
                 case TypeReal:
-                    out << parseTypeReal(data, currentOffset, recordDescriptor[i].length);
+                    out << to_string(parseTypeReal(data, currentOffset, recordDescriptor[i].length));
                     break;
                 case TypeVarChar:
                     out << parseTypeVarchar(data, currentOffset);
@@ -273,12 +273,12 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::writePage(PageNum pageNum, Page &page, FileHandle &file, bool toAppend) {
-        char* pageData = (char*) malloc(PAGE_SIZE);
         long slotsSize = static_cast<int>(sizeof(Slot)) * page.directory.slots.size();
         unsigned short recordsSize = 0;
         for (short i = 0; i < page.directory.recordCount; ++i)
             recordsSize += page.directory.getRecordLength(i);
 
+        char* pageData = (char*) malloc(PAGE_SIZE);
         memcpy(pageData, page.records, recordsSize);
         short freeBytes = PAGE_SIZE - recordsSize - sizeof(short) * 2 - slotsSize;
         memcpy(pageData + PAGE_SIZE - sizeof(short) * 2 - slotsSize, page.directory.slots.data(), slotsSize);
@@ -411,32 +411,25 @@ namespace PeterDB {
         short nullBytes = ceil(((float)recordDescriptor.size()) / 8);
         recordLength = sizeof(short) + sizeof(short) * recordDescriptor.size(); // space for fieldCount 'n' and n offsets
         int currentOffset = nullBytes;
-        short dataOffset = sizeof(short) * (recordDescriptor.size() + 1);
+        int dataOffset = sizeof(short) * (recordDescriptor.size() + 1);
         for (short i = 0; i < recordDescriptor.size(); ++i) {
             // check null
-            int columnPosition = i;
-            for (int j = (i - 1) + 1; j < columnPosition; ++j) {
-                offsets[j] = -1;
-                fieldLengths[j] = -1;
-            }
             if (((char*)data)[i / 8] & (1 << (7 - i % 8))) {
-                offsets[columnPosition] = -1;
-                fieldLengths[columnPosition] = -1;
+                offsets[i] = -1;
+                fieldLengths[i] = -1;
                 continue;
             }
 
             // get size for varchar
             int fieldSize = recordDescriptor[i].type == TypeVarChar ? 0 : recordDescriptor[i].length;
             if (recordDescriptor[i].type == TypeVarChar) {
-                int varcharSize = 0;
-                memcpy(&varcharSize, (char *) data + currentOffset, 4);
-                fieldSize = varcharSize;
+                memcpy(&fieldSize, (char *) data + currentOffset, 4);
                 currentOffset += 4;
             }
             recordLength += fieldSize;
-            fieldLengths[columnPosition] = fieldSize;
+            fieldLengths[i] = fieldSize;
             dataOffset += fieldSize;
-            offsets[columnPosition] = dataOffset;
+            offsets[i] = dataOffset;
             currentOffset += fieldSize;
         }
         if (recordLength < MIN_RECORD_SIZE)

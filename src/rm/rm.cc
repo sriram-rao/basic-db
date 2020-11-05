@@ -342,9 +342,8 @@ namespace PeterDB {
         int nameLength = 0;
         int copiedLength = 1; // Skip null byte since we should not have nulls in Columns table anyway
         CopyUtils::copyAttribute(data, &nameLength, copiedLength, sizeof(nameLength));
-        char name [nameLength + 1];
+        char name [nameLength];
         CopyUtils::copyAttribute(data, name, copiedLength, nameLength);
-        name[nameLength] = '\0';
         int type, length, columnFlag;
         CopyUtils::copyAttribute(data, &type, copiedLength, sizeof(type));
         CopyUtils::copyAttribute(data, &length, copiedLength, sizeof(length));
@@ -382,7 +381,7 @@ namespace PeterDB {
     void RelationManager::getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag, char* data) {
         int copiedLength = 0;
         char nullMap = 0;
-        int length = attribute.name.length();
+        int length = attribute.name.length() + 1;
         int columnType = attribute.type;
         memset(&nullMap, 0, 1);
         copyData(data, &nullMap, copiedLength, 1);
