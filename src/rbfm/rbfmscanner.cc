@@ -63,7 +63,8 @@ namespace PeterDB {
         }
 
         char* recordData = (char*) malloc(recordLength + recordNulls);
-        RecordBasedFileManager::instance().readRecord(fileHandle, recordDescriptor, rid, recordData);
+        parseRecordData(record, recordData);
+//        RecordBasedFileManager::instance().readRecord(fileHandle, recordDescriptor, rid, recordData);
 
         // Null bitmap
         int nullBytes = ceil((float)attributeNames.size() / 8);
@@ -192,15 +193,13 @@ namespace PeterDB {
         }
 
         if (TypeInt == type) {
-            int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
-            startOffset = 0;
-            int n2 = RecordBasedFileManager::parseTypeInt(value2, startOffset, 4);
+            int n1 = *(int *) ((uint8_t *) value1 + 1);
+            int n2 = *(int *) ((uint8_t *) value2);
             return n1 == n2;
         }
 
-        float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
-        startOffset = 0;
-        float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
+        float f1 = *(float *) ((uint8_t *) value1 + 1);
+        float f2 = *(float *) ((uint8_t *) value2);
         return f1 == f2;
     }
 
@@ -216,15 +215,13 @@ namespace PeterDB {
         }
 
         if (TypeInt == type) {
-            int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
-            startOffset = 0;
-            int n2 = RecordBasedFileManager::parseTypeInt(value2, startOffset, 4);
+            int n1 = *(int *) ((uint8_t *) value1 + 1);
+            int n2 = *(int *) ((uint8_t *) value2);
             return n1 < n2;
         }
 
-        float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
-        startOffset = 0;
-        float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
+        float f1 = *(float *) ((uint8_t *) value1 + 1);
+        float f2 = *(float *) ((uint8_t *) value2);
         return f1 < f2;
     }
 
@@ -240,15 +237,49 @@ namespace PeterDB {
         }
 
         if (TypeInt == type) {
-            int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
-            startOffset = 0;
-            int n2 = RecordBasedFileManager::parseTypeInt(value2, startOffset, 4);
+            int n1 = *(int *) ((uint8_t *) value1 + 1);
+            int n2 = *(int *) ((uint8_t *) value2);
             return n1 > n2;
         }
 
-        float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
-        startOffset = 0;
-        float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
+        float f1 = *(float *) ((uint8_t *) value1 + 1);
+        float f2 = *(float *) ((uint8_t *) value2);
         return f1 > f2;
+    }
+
+    void RBFM_ScanIterator::parseRecordData(Record &record, void *data) {
+        int nullBytes = ceil((float)record.attributeCount / 8);
+        char nullBitMap [nullBytes];
+        std::memset(nullBitMap, 0, nullBytes);
+        for (int i = 0; i < recordDescriptor.size(); ++i) {
+            if (record.offsets[i] == -1)
+                nullBitMap[i / 8] = nullBitMap[i / 8] | (1 << (7 - i % 8));
+        }
+
+        memcpy(data, nullBitMap, nullBytes);
+        int currentOffset = nullBytes;
+        int sourceOffset = 0;
+        int nonNullIndex = -1;
+        // Add back varchar length
+        for (int i = 0; i < recordDescriptor.size(); ++i) {
+            int columnPosition = i;
+            if (record.offsets[columnPosition] == -1)
+                continue; // NULL
+            int fieldSize = recordDescriptor[i].length;
+            if (recordDescriptor[i].type == TypeVarChar) {
+                // Get the size of the varchar and append
+                int startIndex = nonNullIndex == -1 ? sizeof(short) * (recordDescriptor.size() + 1) : record.offsets[nonNullIndex];
+                fieldSize = record.offsets[columnPosition] == -1 ? 0 : record.offsets[columnPosition] - startIndex;
+                memcpy((char*) data + currentOffset, &fieldSize, 4);
+                currentOffset += 4;
+            }
+            if (fieldSize == 0)
+                continue;
+
+            std::memcpy((char *)data + currentOffset, record.values + sourceOffset, fieldSize);
+            sourceOffset += fieldSize;
+            currentOffset += fieldSize;
+            nonNullIndex = columnPosition;
+        }
     }
 }

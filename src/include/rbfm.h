@@ -166,6 +166,7 @@ namespace PeterDB {
 
         bool incrementRid(int recordCount);  // returns true if incrementation was successful
         bool conditionMet(Record &record);
+        void parseRecordData(Record &record, void *data);
 
         // Comparisons
         static bool checkEqual(AttrType type, const void* value1, const void* value2);
