@@ -133,7 +133,7 @@ namespace PeterDB {
                 break;
             }
         }
-        char* data = (char*) malloc(length);
+        char* data = (char*) malloc(length + 1);
         int readSuccess = RecordBasedFileManager::instance().readAttribute(record, recordDescriptor, { pageNum, static_cast<unsigned short>(slotNum) }, conditionAttribute, data);
         if (readSuccess != 0) {
             free(data);
