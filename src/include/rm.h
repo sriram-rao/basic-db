@@ -8,6 +8,8 @@
 
 namespace PeterDB {
 #define RM_EOF (-1)  // end of a scan operator
+#define TABLE_FILE_NAME "Tables"
+#define COLUMN_FILE_NAME "Columns"
 
     // RM_ScanIterator is an iterator to go through tuples
     class RM_ScanIterator {
@@ -20,7 +22,21 @@ namespace PeterDB {
         RC getNextTuple(RID &rid, void *data);
 
         RC close();
+
+        RBFM_ScanIterator rbfmScanner;
+
+        std::string tableName;
+        std::string conditionAttribute;
+        CompOp compOp;
+        void *value;
+        std::vector<std::string> attributeNames;
+        vector<Attribute> descriptor;
+        unsigned pageNum;
+        short slotNum;
     };
+
+    typedef int (RecordBasedFileManager::*operateRecord)(FileHandle &handle, const vector<Attribute> &recordDescriptor,
+            void *data, RID &rid);
 
     // Relation Manager
     class RelationManager {
@@ -36,6 +52,8 @@ namespace PeterDB {
         RC deleteTable(const std::string &tableName);
 
         RC getAttributes(const std::string &tableName, std::vector<Attribute> &attrs);
+
+        RC getAttributes(const std::string &tableName, std::vector<Attribute> &attrs, bool allowSystemTables);
 
         RC insertTuple(const std::string &tableName, const void *data, RID &rid);
 
@@ -65,12 +83,32 @@ namespace PeterDB {
 
         RC dropAttribute(const std::string &tableName, const std::string &attributeName);
 
+
     protected:
         RelationManager();                                                  // Prevent construction
         ~RelationManager();                                                 // Prevent unwanted destruction
         RelationManager(const RelationManager &);                           // Prevent construction by copying
         RelationManager &operator=(const RelationManager &);                // Prevent assignment
 
+    private:
+        static std::vector<Attribute> getTablesDescriptor();
+        static std::vector<Attribute> getColumnsDescriptor();
+        static void getStaticTableRecord(int id, const string& name, const string& fileName, char* data);
+        static void getTableRecord(int id, const string& name, const string& fileName, int tableType, char* data);
+        static void getStaticColumnRecord(int id, const Attribute &attribute, int position, char* data);
+        static void getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag, char* data);
+        static vector<string> getAttributeSchema();
+        static Attribute parseColumnAttribute(char* data);
+        static void copyData(void* data, void* newData, int& copiedLength, int newLength);
+        int getTableId(const string &tableName, RID &tableRid);
+        void makeTableIdFilter(int tableId, char* tableFilter);
+        int getMaxTableId();
+        int operateTuple(const string &tableName, void *data, RID &rid, operateRecord);
+
+        static const int TABLE_RECORD_MAX_SIZE = 208;
+        static const int SYSTEM_TABLE_TYPE = 1;
+        static const int COLUMN_RECORD_MAX_SIZE = 70;
+        static const int SYSTEM_COLUMN_TYPE = 1;
     };
 
 } // namespace PeterDB
