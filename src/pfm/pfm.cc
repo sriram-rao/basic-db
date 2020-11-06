@@ -34,7 +34,9 @@ namespace PeterDB {
     }
 
     RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-        if (fileHandle.isOpen() || !FileHandle::exists(fileName)) return -1;
+        if (fileHandle.isOpen() || !FileHandle::exists(fileName)) {
+            return -1;
+        }
         fstream file(fileName, ios::in | ios::out | ios::binary);
         fileHandle.setFile(std::move(file));
         return fileHandle.open();

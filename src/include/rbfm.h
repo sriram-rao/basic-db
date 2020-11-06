@@ -164,7 +164,7 @@ namespace PeterDB {
         void *value;                    // used in the comparison
         vector<string> attributeNames;  // a list of projected attributes
 
-        bool incrementRid(Page &page);  // returns true if incrementation was successful
+        bool incrementRid(int recordCount);  // returns true if incrementation was successful
         bool conditionMet(Record &record);
 
         // Comparisons

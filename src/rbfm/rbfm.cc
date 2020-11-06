@@ -253,7 +253,8 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::readPage(PageNum pageNum, Page &ogPage, FileHandle &file) {
         char* pageData = (char*) malloc(PAGE_SIZE);
-        file.readPage(pageNum, pageData);
+        if (file.readPage(pageNum, pageData) == -1)
+            return -1;
 
         // Read slot directory
         short recordCount, freeSpace;
