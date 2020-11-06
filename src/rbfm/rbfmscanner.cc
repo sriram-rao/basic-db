@@ -191,6 +191,13 @@ namespace PeterDB {
             return s1 == s2;
         }
 
+        if (TypeInt == type) {
+            int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            startOffset = 0;
+            int n2 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            return n1 == n2;
+        }
+
         float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
         startOffset = 0;
         float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
@@ -208,6 +215,13 @@ namespace PeterDB {
             return s1 < s2;
         }
 
+        if (TypeInt == type) {
+            int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            startOffset = 0;
+            int n2 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            return n1 < n2;
+        }
+
         float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
         startOffset = 0;
         float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
@@ -223,6 +237,13 @@ namespace PeterDB {
             startOffset = 0;
             string s2 = RecordBasedFileManager::parseTypeVarchar(value2, startOffset);
             return s1 > s2;
+        }
+
+        if (TypeInt == type) {
+            int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            startOffset = 0;
+            int n2 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            return n1 > n2;
         }
 
         float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
