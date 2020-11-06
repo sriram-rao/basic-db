@@ -136,22 +136,22 @@ namespace PeterDB {
 
         switch(compOp) {
             case EQ_OP:
-                result = checkEqual(type, value, data);
+                result = checkEqual(type, data, value);
                 break;
             case LT_OP:
-                result = checkLessThan(type, value, data);
+                result = checkLessThan(type, data, value);
                 break;
             case LE_OP:
-                result = checkEqual(type, value, data) || checkLessThan(type, value, data);
+                result = checkEqual(type, data, value) || checkLessThan(type, data, value);
                 break;
             case GT_OP:
-                result = checkGreaterThan(type, value, data);
+                result = checkGreaterThan(type, data, value);
                 break;
             case GE_OP:
-                result = checkGreaterThan(type, value, data) || checkEqual(type, value, data);
+                result = checkGreaterThan(type, data, value) || checkEqual(type, data, value);
                 break;
             case NE_OP:
-                result = !checkEqual(type, value, data);
+                result = !checkEqual(type, data, value);
                 break;
             case NO_OP:
                 result = true;
@@ -174,51 +174,51 @@ namespace PeterDB {
 
     bool RBFM_ScanIterator::checkEqual(AttrType type, const void *value1, const void *value2) {
         int startOffset = 1;
-        if ((((char *) value1)[0] & (1 << 7)) ||  (((char *) value2)[0] & (1 << 7)))
+        if (((char *) value1)[0] & (1 << 7))
             return false;
         if (TypeVarChar == type) {
             string s1 = RecordBasedFileManager::parseTypeVarchar(value1, startOffset);
-            startOffset = 1;
+            startOffset = 0;
             string s2 = RecordBasedFileManager::parseTypeVarchar(value2, startOffset);
             return s1 == s2;
         }
 
         float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
-        startOffset = 1;
+        startOffset = 0;
         float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
         return f1 == f2;
     }
 
     bool RBFM_ScanIterator::checkLessThan(AttrType type, const void *value1, const void *value2) {
         int startOffset = 1;
-        if ((((char *) value1)[0] & (1 << 7)) ||  (((char *) value2)[0] & (1 << 7)))
+        if (((char *) value1)[0] & (1 << 7))
             return false;
         if (TypeVarChar == type) {
             string s1 = RecordBasedFileManager::parseTypeVarchar(value1, startOffset);
-            startOffset = 1;
+            startOffset = 0;
             string s2 = RecordBasedFileManager::parseTypeVarchar(value2, startOffset);
             return s1 < s2;
         }
 
         float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
-        startOffset = 1;
+        startOffset = 0;
         float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
         return f1 < f2;
     }
 
     bool RBFM_ScanIterator::checkGreaterThan(AttrType type, const void *value1, const void *value2) {
         int startOffset = 1;
-        if ((((char *) value1)[0] & (1 << 7)) ||  (((char *) value2)[0] & (1 << 7)))
+        if (((char *) value1)[0] & (1 << 7))
             return false;
         if (TypeVarChar == type) {
             string s1 = RecordBasedFileManager::parseTypeVarchar(value1, startOffset);
-            startOffset = 1;
+            startOffset = 0;
             string s2 = RecordBasedFileManager::parseTypeVarchar(value2, startOffset);
             return s1 > s2;
         }
 
         float f1 = RecordBasedFileManager::parseTypeReal(value1, startOffset, 4);
-        startOffset = 1;
+        startOffset = 0;
         float f2 = RecordBasedFileManager::parseTypeReal(value2, startOffset, 4);
         return f1 > f2;
     }
