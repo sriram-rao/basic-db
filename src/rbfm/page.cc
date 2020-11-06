@@ -98,7 +98,7 @@ namespace PeterDB {
             record = Record({ PAGE_SIZE * 2, PAGE_SIZE  * 2 }, -1, vector<short>(0), nullptr);
 
         Slot recordSlot = this->directory.slots[slotNum];
-        char* recordData = (char*) malloc(recordSlot.length); // Need to free
+        char* recordData = (char*) malloc(recordSlot.length);
         memcpy(recordData, records + recordSlot.offset, recordSlot.length);
         record = Record(recordData);
         free(recordData);

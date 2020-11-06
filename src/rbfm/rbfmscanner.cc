@@ -56,8 +56,13 @@ namespace PeterDB {
         if (!conditionMet(record))
             return getNextRecord(rid, data);
 
-        printf("PageNum: %d, SlotNum: %d\n", pageNum, slotNum);
-        char* recordData = (char*) malloc(PAGE_SIZE);
+        int recordNulls = ceil((float)recordDescriptor.size() / 8);
+        int recordLength = 0;
+        for (auto & attr : recordDescriptor) {
+            recordLength += attr.length;
+        }
+
+        char* recordData = (char*) malloc(recordLength + recordNulls);
         RecordBasedFileManager::instance().readRecord(fileHandle, recordDescriptor, rid, recordData);
 
         // Null bitmap
