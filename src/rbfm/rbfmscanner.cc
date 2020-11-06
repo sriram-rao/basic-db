@@ -194,7 +194,7 @@ namespace PeterDB {
         if (TypeInt == type) {
             int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
             startOffset = 0;
-            int n2 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            int n2 = RecordBasedFileManager::parseTypeInt(value2, startOffset, 4);
             return n1 == n2;
         }
 
@@ -218,7 +218,7 @@ namespace PeterDB {
         if (TypeInt == type) {
             int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
             startOffset = 0;
-            int n2 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            int n2 = RecordBasedFileManager::parseTypeInt(value2, startOffset, 4);
             return n1 < n2;
         }
 
@@ -242,7 +242,7 @@ namespace PeterDB {
         if (TypeInt == type) {
             int n1 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
             startOffset = 0;
-            int n2 = RecordBasedFileManager::parseTypeInt(value1, startOffset, 4);
+            int n2 = RecordBasedFileManager::parseTypeInt(value2, startOffset, 4);
             return n1 > n2;
         }
 
