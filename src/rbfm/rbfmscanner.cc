@@ -39,6 +39,7 @@ namespace PeterDB {
 
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
         Page page;
+        page.directory.recordCount = 0;
         if (RecordBasedFileManager::readPage(pageNum, page, fileHandle) == -1)
             return RBFM_EOF;
         if (!incrementRid(page.directory.recordCount))
@@ -55,6 +56,7 @@ namespace PeterDB {
         if (!conditionMet(record))
             return getNextRecord(rid, data);
 
+        printf("PageNum: %d, SlotNum: %d\n", pageNum, slotNum);
         char* recordData = (char*) malloc(PAGE_SIZE);
         RecordBasedFileManager::instance().readRecord(fileHandle, recordDescriptor, rid, recordData);
 
