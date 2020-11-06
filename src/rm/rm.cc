@@ -114,7 +114,7 @@ namespace PeterDB {
         char *columnTableId = (char *) malloc(sizeof(tableId) + 1);
         vector<Attribute> columnsDescriptor = getColumnsDescriptor();
 
-        char *tableFilter = (char *)malloc(sizeof(tableId) + 1);
+        char *tableFilter = (char *)malloc(sizeof(tableId));
         makeTableIdFilter(tableId, tableFilter);
 
         recordManager.openFile(COLUMN_FILE_NAME, handle);
@@ -152,7 +152,7 @@ namespace PeterDB {
 
         // Fetch attributes from columns
         FileHandle handle;
-        char *tableFilter = (char *)malloc(sizeof(tableId) + 1);
+        char *tableFilter = (char *)malloc(sizeof(tableId));
         makeTableIdFilter(tableId, tableFilter);
         RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
         recordManager.openFile(COLUMN_FILE_NAME, handle);
@@ -407,13 +407,10 @@ namespace PeterDB {
         FileHandle handle;
         vector<Attribute> tablesDescriptor = getTablesDescriptor();
         RBFM_ScanIterator rbfmScanner;
-        char *tableFilter = (char *)malloc(tableName.size() + sizeof(int) + 1);
-        char nullMap = 0;
-        memset(&nullMap, 0, 1);
-        memcpy(tableFilter, &nullMap, 1);
+        char *tableFilter = (char *)malloc(tableName.size() + sizeof(int));
         int tableNameLength = tableName.size();
-        memcpy(tableFilter + 1, &tableNameLength, sizeof(tableNameLength));
-        memcpy(tableFilter + 1 + sizeof(tableNameLength), tableName.c_str(), tableNameLength);
+        memcpy(tableFilter, &tableNameLength, sizeof(tableNameLength));
+        memcpy(tableFilter + sizeof(tableNameLength), tableName.c_str(), tableNameLength);
         RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
         recordManager.openFile(TABLE_FILE_NAME, handle);
         recordManager.scan(handle, tablesDescriptor, "table-name", EQ_OP, tableFilter, vector<string>(1, "table-id"), rbfmScanner);
@@ -434,10 +431,7 @@ namespace PeterDB {
     }
 
     void RelationManager::makeTableIdFilter(int tableId, char* tableFilter) {
-        char nullMap = 0;
-        memset(&nullMap, 0, 1);
-        memcpy(tableFilter, &nullMap, 1);
-        memcpy(tableFilter + 1, &tableId, sizeof(tableId));
+        memcpy(tableFilter, &tableId, sizeof(tableId));
     }
 
     int RelationManager::getMaxTableId() {
