@@ -195,14 +195,14 @@ namespace PeterDBTesting {
         setBit(*((char *) src + bytes), isNull, pos);
     }
 
-//    // This code is required for testing to measure the memory usage of your code.
-//    // If you can't compile the codebase because of this function, you can safely comment this function or remove it.
-//    void memProfile() {
-//        int who = RUSAGE_SELF;
-//        struct rusage usage{};
-//        getrusage(who, &usage);
-//        std::cout << usage.ru_maxrss << "KB" << std::endl;
-//    }
+    // This code is required for testing to measure the memory usage of your code.
+    // If you can't compile the codebase because of this function, you can safely comment this function or remove it.
+    void memProfile() {
+        int who = RUSAGE_SELF;
+        struct rusage usage{};
+        getrusage(who, &usage);
+        std::cout << usage.ru_maxrss << "KB" << std::endl;
+    }
 
 } // namespace PeterDBTesting
 
