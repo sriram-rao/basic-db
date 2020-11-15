@@ -8,6 +8,7 @@
 #include "rbfm.h" // for some type declarations only, e.g., RID and Attribute
 
 # define IX_EOF (-1)  // end of the index scan
+# define IX_HIDDEN_PAGE_COUNT 1
 
 namespace PeterDB {
     class IX_ScanIterator;
@@ -80,9 +81,23 @@ namespace PeterDB {
         unsigned ixReadPageCounter;
         unsigned ixWritePageCounter;
         unsigned ixAppendPageCounter;
+        int rootPage;
+        std::fstream ixFile;
 
         // Constructor
         IXFileHandle();
+
+        IXFileHandle& operator= (const IXFileHandle& other);
+
+        void setFile(std::fstream&& file);
+
+        RC readPage(PageNum pageNum, void *data);                           // Get a specific page
+        RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
+        int appendPage(const void *data);                                   // Append a specific page, returns the new page number
+        RC create(const std::string &fileName);
+        void init();
+        RC open(const std::string &fileName);
+        RC close();
 
         // Destructor
         ~IXFileHandle();
