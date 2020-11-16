@@ -104,6 +104,6 @@ namespace PeterDB {
         ixFile.write(reinterpret_cast<char *>(const_cast<void *>(data)), PAGE_SIZE);
         ixFile.flush();
         ixAppendPageCounter++;
-        return static_cast<int>(ixAppendPageCounter);
+        return static_cast<int>(ixAppendPageCounter - 1);
     }
 }

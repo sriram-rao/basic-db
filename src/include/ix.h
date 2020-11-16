@@ -9,11 +9,17 @@
 
 # define IX_EOF (-1)  // end of the index scan
 # define IX_HIDDEN_PAGE_COUNT 1
+# define NODE_TYPE_INTERMEDIATE 1
+# define NODE_TYPE_LEAF 2
 
 namespace PeterDB {
     class IX_ScanIterator;
 
     class IXFileHandle;
+
+    class Node;
+
+    class InsertionChild;
 
     class IndexManager {
 
@@ -49,6 +55,8 @@ namespace PeterDB {
 
         // Print the B+ tree in pre-order (in a JSON record format)
         RC printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const;
+
+        void insert(IXFileHandle &ixFileHandle, int nodePageId, const Attribute &attribute, const void *key, const RID &rid, InsertionChild *newChild);
 
     protected:
         IndexManager() = default;                                                   // Prevent construction
@@ -106,5 +114,36 @@ namespace PeterDB {
         RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
 
     };
+
+    class Node {
+    public:
+        char *keys;
+        char type; // Intermediate node or leaf node
+        int freeSpace;
+        int nextPage;
+        vector<Slot> directory;
+
+        Node(char type);
+        Node(char *bytes);
+
+        int getOccupiedSpace() const;
+        void insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid);
+        void getKeyData(int index, const Attribute &attribute, char *key, RID &rid);
+        bool hasSpace(int dataSpace) const;
+        void populateBytes(char *bytes);
+        std::string toJsonString(const Attribute &keyField);
+
+        ~Node();
+
+    private:
+        int getKeySize(int index, const Attribute &keyField) const;
+    };
+
+    class InsertionChild{
+    public:
+        void *leastChildValue;
+        int childNodePage;
+    };
+
 }// namespace PeterDB
 #endif // _ix_h_
