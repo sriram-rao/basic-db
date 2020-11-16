@@ -66,22 +66,6 @@ namespace PeterDB {
 
     };
 
-    class IX_ScanIterator {
-    public:
-
-        // Constructor
-        IX_ScanIterator();
-
-        // Destructor
-        ~IX_ScanIterator();
-
-        // Get next matching entry
-        RC getNextEntry(RID &rid, void *key);
-
-        // Terminate index scan
-        RC close();
-    };
-
     class IXFileHandle {
     public:
 
@@ -102,6 +86,7 @@ namespace PeterDB {
         RC readPage(PageNum pageNum, void *data);                           // Get a specific page
         RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
         int appendPage(const void *data);                                   // Append a specific page, returns the new page number
+        int getRootPageId();
         RC create(const std::string &fileName);
         void init();
         RC open(const std::string &fileName);
@@ -113,6 +98,37 @@ namespace PeterDB {
         // Put the current counter values of associated PF FileHandles into variables
         RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
 
+        unsigned getPageCount() const;
+
+    };
+
+    class IX_ScanIterator {
+    public:
+
+        // Constructor
+        IX_ScanIterator();
+
+        // Destructor
+        ~IX_ScanIterator();
+
+        // Get next matching entry
+        RC getNextEntry(RID &rid, void *key);
+
+        // Terminate index scan
+        RC close();
+
+        bool meetsCondition(void *key);
+
+        void incrementCursor(int currentKeyCount, int nextPage);
+
+        IXFileHandle *ixFileHandle;
+        int pageNum;
+        int slotNum;
+        Attribute attribute;
+        void *lowKey;
+        void *highKey;
+        bool lowKeyInclusive;
+        bool highKeyInclusive;
     };
 
     class Node {
@@ -129,6 +145,7 @@ namespace PeterDB {
         int getOccupiedSpace() const;
         void insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid);
         void getKeyData(int index, const Attribute &attribute, char *key, RID &rid);
+        int getKeyCount() const;
         bool hasSpace(int dataSpace) const;
         void populateBytes(char *bytes);
         std::string toJsonString(const Attribute &keyField);

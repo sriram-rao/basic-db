@@ -32,7 +32,7 @@ namespace PeterDB {
 
     RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
         // Start from root node
-        insert(ixFileHandle, ixFileHandle.rootPage, attribute, key, rid, nullptr);
+        insert(ixFileHandle, ixFileHandle.getRootPageId(), attribute, key, rid, nullptr);
 
         return 0;
     }
@@ -78,28 +78,23 @@ namespace PeterDB {
                           bool lowKeyInclusive,
                           bool highKeyInclusive,
                           IX_ScanIterator &ix_ScanIterator) {
-        return -1;
+        ix_ScanIterator.attribute = attribute;
+        ix_ScanIterator.lowKey = const_cast<void *>(lowKey);
+        ix_ScanIterator.highKey = const_cast<void *>(highKey);
+        ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
+        ix_ScanIterator.highKeyInclusive = highKeyInclusive;
+        ix_ScanIterator.ixFileHandle = &ixFileHandle;
+//        ix_ScanIterator.ixFileHandle.setFile(std::move(ixFileHandle.ixFile));
+        ix_ScanIterator.pageNum = ixFileHandle.getRootPageId();
+        ix_ScanIterator.slotNum = 0;
+        return 0;
     }
 
     RC IndexManager::printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const {
         char bytes[PAGE_SIZE];
-        ixFileHandle.readPage(ixFileHandle.rootPage, bytes);
+        ixFileHandle.readPage(ixFileHandle.getRootPageId(), bytes);
         Node rootNode(bytes);
         out << rootNode.toJsonString(attribute);
         return 0;
-    }
-
-    IX_ScanIterator::IX_ScanIterator() {
-    }
-
-    IX_ScanIterator::~IX_ScanIterator() {
-    }
-
-    RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
-        return -1;
-    }
-
-    RC IX_ScanIterator::close() {
-        return -1;
     }
 } // namespace PeterDB

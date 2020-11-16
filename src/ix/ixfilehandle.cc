@@ -26,7 +26,8 @@ namespace PeterDB {
 
     RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
         readPageCount = ixReadPageCounter,
-        writePageCount = ixWritePageCounter,
+        writePageCount = ixWritePageCounter;
+//        ixAppendPageCounter += 2;
         appendPageCount = ixAppendPageCounter;
         return 0;
     }
@@ -100,10 +101,19 @@ namespace PeterDB {
     }
 
     int IXFileHandle::appendPage(const void *data) {
-        ixFile.seekp(ixAppendPageCounter * PAGE_SIZE, ios::beg);
+        ixFile.seekp((getPageCount() + 1) * PAGE_SIZE, ios::beg);
         ixFile.write(reinterpret_cast<char *>(const_cast<void *>(data)), PAGE_SIZE);
         ixFile.flush();
         ixAppendPageCounter++;
         return static_cast<int>(ixAppendPageCounter - 1);
+    }
+
+    int IXFileHandle::getRootPageId() {
+        ixReadPageCounter++;
+        return rootPage;
+    }
+
+    unsigned IXFileHandle::getPageCount() const {
+        return ixAppendPageCounter - 1;
     }
 }

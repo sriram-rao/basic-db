@@ -24,7 +24,7 @@ namespace PeterDB{
         if (directoryCount > 0) {
             int directorySize = directoryCount * sizeof(Slot);
             directory = vector<Slot>(directoryCount, {0, 0});
-            std::memcpy(directory.data(), bytes + PAGE_SIZE - sizeof(directoryCount) - sizeof(nextPage) - sizeof(freeSpace) - sizeof(type), directorySize);
+            std::memcpy(directory.data(), bytes + PAGE_SIZE - directorySize - sizeof(directoryCount) - sizeof(nextPage) - sizeof(freeSpace) - sizeof(type), directorySize);
         }
 
         // Populate data
@@ -110,6 +110,10 @@ namespace PeterDB{
 
         Slot keySlot = directory.at(index);
         return keySlot.length - static_cast<int>(sizeof(unsigned)) - static_cast<int>(sizeof(unsigned short ));
+    }
+
+    int Node::getKeyCount() const {
+        return directory.size();
     }
 
     Node::~Node() {
