@@ -14,7 +14,7 @@ namespace PeterDB {
         Node node(nodeBytes);
 
         // Go to the right leaf
-        node.getKeyData(slotNum, attribute, static_cast<char *>(key), rid);
+        node.getKeyData(attribute, slotNum, static_cast<char *>(key), rid);
 
         incrementCursor(node.getKeyCount(), node.nextPage);
         return meetsCondition(key)

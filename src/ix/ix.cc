@@ -31,9 +31,7 @@ namespace PeterDB {
     }
 
     RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
-        // Start from root node
         insert(ixFileHandle, ixFileHandle.getRootPageId(), attribute, key, rid, nullptr);
-
         return 0;
     }
 
@@ -44,11 +42,12 @@ namespace PeterDB {
 
         // If not a leaf node
         if (NODE_TYPE_INTERMEDIATE == currentNode.type) {
-
+            // Find the right sub tree
+            int newChildId = currentNode.findChildNode(attribute, key, rid);
+            // Recursively call
+            insert(ixFileHandle, newChildId, attribute, key, rid, newChild);
+            // Handle if there is new child
         }
-        // Find the right sub tree
-        // Recursively call
-        // Handle if there is new child
 
         // If leaf node
         // If node has space, insert in the right place
@@ -64,11 +63,30 @@ namespace PeterDB {
             free(bytes);
             return;
         }
-        // Else split leaf node
+
+        // Else split leaf node, set up newChild
     }
 
     RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
-        return -1;
+        char *bytes = (char *) malloc(PAGE_SIZE);
+        ixFileHandle.readPage(ixFileHandle.getRootPageId(), bytes);
+        Node currentNode(bytes);
+
+        // Find the leaf node with this key/rid
+        int keyPageId = ixFileHandle.getRootPageId();
+        while (NODE_TYPE_LEAF != currentNode.type){
+            keyPageId = currentNode.findChildNode(attribute, key, rid);
+            ixFileHandle.readPage(keyPageId, bytes);
+            currentNode = Node(bytes);
+        }
+        int indexToDelete = currentNode.findKey(attribute, key, rid);
+        if (-1 == indexToDelete)
+            return -1; // Key not found
+
+        currentNode.deleteKey(attribute, indexToDelete, key, rid);
+        currentNode.populateBytes(bytes);
+        ixFileHandle.writePage(keyPageId, bytes);
+        return 0;
     }
 
     RC IndexManager::scan(IXFileHandle &ixFileHandle,

@@ -61,6 +61,19 @@ namespace PeterDB{
         return freeSpace > (dataSpace + sizeof(Slot));
     }
 
+    int Node::findChildNode(const Attribute &keyField, const void *key, const RID &rid){
+        // Find the correct sub-tree, return child page ID
+        return 0;
+    }
+
+    int Node::findKey(const Attribute &keyField, const void *key, const RID &rid){
+        // Find the correct leaf entry
+        // If found, return directory index
+        return 0;
+
+        // If not found, return -1
+    }
+
     void Node::insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid) {
         int keySize = 4;
         if (TypeVarChar == keyField.type) {
@@ -74,7 +87,31 @@ namespace PeterDB{
         freeSpace = freeSpace - dataSpace - sizeof(Slot);
     }
 
-    void Node::getKeyData(int index, const Attribute &keyField, char *key, RID &rid) {
+    void Node::deleteKey(const Attribute &keyField, int index, const void *key, const RID &rid) {
+        // Find index
+
+        Slot current = directory.at(index);
+        int dataToMove = 0;
+        bool nextIndexFound = false;
+        int nextOffset = current.offset;
+        for (int i = index + 1; i < directory.size(); ++i) {
+            Slot nextSlot = directory.at(i);
+            if (nextSlot.offset != -1) {
+                if (!nextIndexFound) {
+                    nextIndexFound = true;
+                    nextOffset = nextSlot.length;
+                }
+                dataToMove += nextSlot.length;
+            }
+        }
+
+        std::memmove(keys + current.offset, keys + nextOffset, dataToMove);
+        freeSpace += current.length;
+        directory.at(index).offset = -1;
+        directory.at(index).length = -1;
+    }
+
+    void Node::getKeyData(const Attribute &keyField, int index, char *key, RID &rid) {
         Slot keySlot = directory.at(index);
         int keySize =  getKeySize(index, keyField);
         std::memcpy(key, keys + keySlot.offset, keySize);

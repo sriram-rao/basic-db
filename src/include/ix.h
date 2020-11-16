@@ -143,8 +143,11 @@ namespace PeterDB {
         Node(char *bytes);
 
         int getOccupiedSpace() const;
+        int findChildNode(const Attribute &keyField, const void *key, const RID &rid);
+        int findKey(const Attribute &keyField, const void *key, const RID &rid);
         void insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid);
-        void getKeyData(int index, const Attribute &attribute, char *key, RID &rid);
+        void deleteKey(const Attribute &keyField, int index, const void *key, const RID &rid);
+        void getKeyData(const Attribute &attribute, int index, char *key, RID &rid);
         int getKeyCount() const;
         bool hasSpace(int dataSpace) const;
         void populateBytes(char *bytes);
