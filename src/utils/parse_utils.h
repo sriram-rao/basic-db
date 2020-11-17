@@ -36,6 +36,15 @@ namespace PeterDB {
             std::memcpy(&value, data, sizeof(float));
             return to_string(value);
         }
+
+        static string parseVarchar(void* data){
+            int fieldLength;
+            std::memcpy(&fieldLength, data, 4);
+            char field [fieldLength + 2];
+            std::memcpy(field, (char *)data + 4, fieldLength);
+            field[fieldLength] = '\0';
+            return string (field);
+        }
     };
 }
 #endif //PETERDB_PARSE_UTILS_H

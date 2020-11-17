@@ -10,11 +10,6 @@ namespace PeterDB {
         IXFileHandle ixFileHandle;
         if (ixFileHandle.create(fileName) != 0)
             return -1;
-        Node root(NODE_TYPE_LEAF);
-        char *bytes = (char *) malloc(PAGE_SIZE);
-        root.populateBytes(bytes);
-        ixFileHandle.open(fileName);
-        ixFileHandle.rootPage = ixFileHandle.appendPage(bytes);
         return ixFileHandle.close();
     }
 
@@ -31,7 +26,17 @@ namespace PeterDB {
     }
 
     RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
-        insert(ixFileHandle, ixFileHandle.getRootPageId(), attribute, key, rid, nullptr);
+        Node root(NODE_TYPE_LEAF);
+        char *bytes = (char *) malloc(PAGE_SIZE);
+        int rootPageId = ixFileHandle.getRootPageId();
+        if (rootPageId == -1) {
+            ixFileHandle.setRootPageId(ixFileHandle.getPageCount() + 1, true);
+            root.populateBytes(bytes);
+            rootPageId = ixFileHandle.appendPage(bytes);
+        }
+        free(bytes);
+
+        insert(ixFileHandle, rootPageId, attribute, key, rid, nullptr);
         return 0;
     }
 
@@ -42,11 +47,28 @@ namespace PeterDB {
 
         // If not a leaf node
         if (NODE_TYPE_INTERMEDIATE == currentNode.type) {
-            // Find the right sub tree
             int newChildId = currentNode.findChildNode(attribute, key, rid);
-            // Recursively call
+            free(bytes);
             insert(ixFileHandle, newChildId, attribute, key, rid, newChild);
+            if (nullptr == newChild)
+                return;
+
             // Handle if there is new child
+            int spaceNeeded = newChild->keyLength;
+            if (currentNode.hasSpace(spaceNeeded)) {
+                // insert child
+                return;
+            }
+            // Find index of new child
+            // split node, second half go to new node
+            // insert new child in correct node
+            // setup newChild to form the new child here
+
+            // this is the root, create a new root (increase tree height)
+            // put the children
+            // write new root page ID to disk
+
+            return;
         }
 
         // If leaf node
@@ -65,15 +87,18 @@ namespace PeterDB {
         }
 
         // Else split leaf node, set up newChild
+
+        free(bytes);
     }
 
     RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
         char *bytes = (char *) malloc(PAGE_SIZE);
-        ixFileHandle.readPage(ixFileHandle.getRootPageId(), bytes);
+        int rootId = ixFileHandle.getRootPageId();
+        ixFileHandle.readPage(rootId, bytes);
         Node currentNode(bytes);
 
         // Find the leaf node with this key/rid
-        int keyPageId = ixFileHandle.getRootPageId();
+        int keyPageId = rootId;
         while (NODE_TYPE_LEAF != currentNode.type){
             keyPageId = currentNode.findChildNode(attribute, key, rid);
             ixFileHandle.readPage(keyPageId, bytes);
@@ -86,6 +111,7 @@ namespace PeterDB {
         currentNode.deleteKey(attribute, indexToDelete, key, rid);
         currentNode.populateBytes(bytes);
         ixFileHandle.writePage(keyPageId, bytes);
+        free(bytes);
         return 0;
     }
 
@@ -96,13 +122,14 @@ namespace PeterDB {
                           bool lowKeyInclusive,
                           bool highKeyInclusive,
                           IX_ScanIterator &ix_ScanIterator) {
+        if (!ixFileHandle.works())
+            return -1;
         ix_ScanIterator.attribute = attribute;
         ix_ScanIterator.lowKey = const_cast<void *>(lowKey);
         ix_ScanIterator.highKey = const_cast<void *>(highKey);
         ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
         ix_ScanIterator.highKeyInclusive = highKeyInclusive;
         ix_ScanIterator.ixFileHandle = &ixFileHandle;
-//        ix_ScanIterator.ixFileHandle.setFile(std::move(ixFileHandle.ixFile));
         ix_ScanIterator.pageNum = ixFileHandle.getRootPageId();
         ix_ScanIterator.slotNum = 0;
         return 0;

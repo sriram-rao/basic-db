@@ -6,7 +6,6 @@ namespace PeterDB {
         ixReadPageCounter = 0;
         ixWritePageCounter = 0;
         ixAppendPageCounter = 0;
-        rootPage = -1;
     }
 
     IXFileHandle::~IXFileHandle() = default;
@@ -15,7 +14,7 @@ namespace PeterDB {
         this->ixReadPageCounter = other.ixReadPageCounter;
         this->ixWritePageCounter = other.ixWritePageCounter;
         this->ixAppendPageCounter = other.ixAppendPageCounter;
-        this->rootPage = other.rootPage;
+        this->filename = other.filename;
         // use setFile for fstream ixFile
         return *this;
     }
@@ -27,7 +26,6 @@ namespace PeterDB {
     RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
         readPageCount = ixReadPageCounter,
         writePageCount = ixWritePageCounter;
-//        ixAppendPageCounter += 2;
         appendPageCount = ixAppendPageCounter;
         return 0;
     }
@@ -43,23 +41,22 @@ namespace PeterDB {
     void IXFileHandle::init() {
         ixReadPageCounter = 0,
         ixWritePageCounter = 0,
-        ixAppendPageCounter = 1,
-        rootPage = -1;
+        ixAppendPageCounter = 1;
     }
 
     RC IXFileHandle::open(const std::string &fileName) {
         if (ixFile.is_open() || !FileHandle::exists(fileName)) {
             return -1;
         }
+        filename = fileName;
         ixFile = fstream(fileName, ios::in | ios::out | ios::binary);
 
-        int counters[4] = { 0, 0, 0, 0 };
+        int counters[3] = { 0, 0, 0 };
         ixFile.seekg(0);
         ixFile.read(reinterpret_cast<char *>(counters), sizeof(counters));
         ixReadPageCounter = counters[0];
         ixWritePageCounter = counters[1];
         ixAppendPageCounter = counters[2];
-        rootPage = counters[3];
         ixReadPageCounter++;
 
         return 0;
@@ -71,12 +68,11 @@ namespace PeterDB {
 
         ixWritePageCounter++;
         ixFile.seekp(0);
-        int counters[4] = { static_cast<int>(ixReadPageCounter), static_cast<int>(ixWritePageCounter), static_cast<int>(ixAppendPageCounter), rootPage };
+        int counters[3] = { static_cast<int>(ixReadPageCounter), static_cast<int>(ixWritePageCounter), static_cast<int>(ixAppendPageCounter) };
         ixFile.write(reinterpret_cast<char *>(counters), sizeof(counters));
         int spaceToReserve = PAGE_SIZE * IX_HIDDEN_PAGE_COUNT - sizeof(counters);
         char junk[spaceToReserve];
         ixFile.write(junk, spaceToReserve);
-
         ixFile.close();
         return 0;
     }
@@ -101,19 +97,34 @@ namespace PeterDB {
     }
 
     int IXFileHandle::appendPage(const void *data) {
-        ixFile.seekp((getPageCount() + 1) * PAGE_SIZE, ios::beg);
+        ixFile.seekp((getPageCount()) * PAGE_SIZE, ios::beg);
         ixFile.write(reinterpret_cast<char *>(const_cast<void *>(data)), PAGE_SIZE);
         ixFile.flush();
         ixAppendPageCounter++;
         return static_cast<int>(ixAppendPageCounter - 1);
     }
 
+    void IXFileHandle::setRootPageId(int rootId, bool create) {
+        char bytes [PAGE_SIZE];
+        std::memcpy(bytes, &rootId, sizeof(rootId));
+        create ? appendPage(bytes) : writePage(HIDDEN_PAGE_COUNT, bytes);
+    }
+
     int IXFileHandle::getRootPageId() {
-        ixReadPageCounter++;
+        if (getPageCount() <= IX_HIDDEN_PAGE_COUNT)
+            return -1;
+        char bytes [PAGE_SIZE];
+        readPage(IX_HIDDEN_PAGE_COUNT, bytes);
+        int rootPage;
+        std::memcpy(&rootPage, bytes, sizeof(rootPage));
         return rootPage;
     }
 
     unsigned IXFileHandle::getPageCount() const {
-        return ixAppendPageCounter - 1;
+        return ixAppendPageCounter;
+    }
+
+    bool IXFileHandle::works() {
+        return ixFile.is_open() && FileHandle::exists(filename);
     }
 }

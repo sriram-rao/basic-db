@@ -73,8 +73,9 @@ namespace PeterDB {
         unsigned ixReadPageCounter;
         unsigned ixWritePageCounter;
         unsigned ixAppendPageCounter;
-        int rootPage;
+
         std::fstream ixFile;
+        std::string filename;
 
         // Constructor
         IXFileHandle();
@@ -87,10 +88,12 @@ namespace PeterDB {
         RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
         int appendPage(const void *data);                                   // Append a specific page, returns the new page number
         int getRootPageId();
+        void setRootPageId(int rootId, bool create = false);
         RC create(const std::string &fileName);
         void init();
         RC open(const std::string &fileName);
         RC close();
+        bool works();
 
         // Destructor
         ~IXFileHandle();
@@ -144,7 +147,7 @@ namespace PeterDB {
 
         int getOccupiedSpace() const;
         int findChildNode(const Attribute &keyField, const void *key, const RID &rid);
-        int findKey(const Attribute &keyField, const void *key, const RID &rid);
+        int findKey(const Attribute &keyField, const void *key, const RID &rid, bool compareRid = true, bool getIndex = false);
         void insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid);
         void deleteKey(const Attribute &keyField, int index, const void *key, const RID &rid);
         void getKeyData(const Attribute &attribute, int index, char *key, RID &rid);
@@ -162,6 +165,7 @@ namespace PeterDB {
     class InsertionChild{
     public:
         void *leastChildValue;
+        int keyLength;
         int childNodePage;
     };
 
