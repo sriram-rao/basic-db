@@ -62,7 +62,18 @@ namespace PeterDB{
         if (directory.empty())
             return -1;
 
-        bool firstCheck = true;
+        char firstKey [directory.at(0).length];
+        RID firstRid {};
+        populateKey(keyField.type, firstKey, firstRid, 0);
+
+        // given key < leftmost entry in node
+        if (CompareUtils::checkLessThan(keyField.type, key, firstKey))
+            return nextPage;
+        if (CompareUtils::checkEqual(keyField.type, key, firstKey) &&
+            (rid.pageNum < firstRid.pageNum || (rid.pageNum == firstRid.pageNum && rid.slotNum < firstRid.slotNum)))
+            return nextPage;
+
+        int lastIndex = 0;
         for (int i = 0; i < directory.size() - 1; ) {
             Slot current = directory.at(i);
             if (current.offset == -1) {
@@ -70,22 +81,9 @@ namespace PeterDB{
                 continue;
             }
 
-            int keyLength = current.length - sizeof(RID::pageNum) - sizeof(RID::slotNum) - sizeof(unsigned);
-            char currentKey [keyLength];
+            char currentKey [current.length];
             RID currentRid {};
-            std::memcpy(currentKey, keys + current.offset, keyLength);
-            std::memcpy(&currentRid.pageNum, keys + current.offset + keyLength, sizeof(currentRid.pageNum));
-            std::memcpy(&currentRid.slotNum, keys + current.offset + keyLength + sizeof(currentRid.pageNum), sizeof(currentRid.slotNum));
-
-            // given key < leftmost entry in node
-            if (firstCheck) {
-                firstCheck = false;
-                if (CompareUtils::checkLessThan(keyField.type, key, currentKey))
-                    return nextPage;
-                if (CompareUtils::checkEqual(keyField.type, key, currentKey) &&
-                (rid.pageNum < currentRid.pageNum || (rid.pageNum == currentRid.pageNum && rid.slotNum < currentRid.slotNum)))
-                    return nextPage;
-            }
+            populateKey(keyField.type, currentKey, currentRid, i);
 
             int nextIndex = i + 1;
             Slot next = directory.at(nextIndex);
@@ -93,13 +91,11 @@ namespace PeterDB{
                 ++nextIndex;
                 next = directory.at(nextIndex);
             }
+            lastIndex = nextIndex;
 
-            int nextKeyLength = next.length - sizeof(RID::pageNum) - sizeof(RID::slotNum) - sizeof(unsigned);
-            char nextKey [nextKeyLength];
+            char nextKey [next.length];
             RID nextRid;
-            std::memcpy(nextKey, keys + next.offset, nextKeyLength);
-            std::memcpy(&nextRid.pageNum, keys + next.offset + nextKeyLength, sizeof(nextRid.pageNum));
-            std::memcpy(&nextRid.slotNum, keys + next.offset + nextKeyLength + sizeof(nextRid.pageNum), sizeof(nextRid.slotNum));
+            populateKey(keyField.type, nextKey, nextRid, nextIndex);
 
             // current key <= given key < next key
             if ((CompareUtils::checkGreaterThan(keyField.type, key, currentKey) || CompareUtils::checkEqual(keyField.type, key, currentKey)) &&
@@ -112,8 +108,12 @@ namespace PeterDB{
             i = nextIndex;
         }
 
-        // Not found
-        return -1;
+        // Key >= last key in node, return last childNode
+        int lastChild = -1;
+        Slot last = directory.at(lastIndex);
+        std::memcpy(&lastChild, keys + last.offset + last.length - sizeof(lastChild), sizeof(lastChild));
+
+        return lastChild;
     }
 
     int Node::findKey(const Attribute &keyField, const void *key, const RID &rid, bool compareRid, bool getIndex){
@@ -170,14 +170,13 @@ namespace PeterDB{
             std::memcpy(&keySize, key, sizeof(int));
         }
 
-        int freeSpaceStart = PAGE_SIZE - freeSpace - sizeof(Slot) * directory.size()
-                - sizeof(int) - sizeof(nextPage) - sizeof(freeSpace) - sizeof(type);
+        int freeSpaceStart = getFreeSpaceStart();
 
         std::memcpy(keys + freeSpaceStart, key, keySize);
         std::memcpy(keys + freeSpaceStart + keySize, &rid.pageNum, sizeof(rid.pageNum));
         std::memcpy(keys + freeSpaceStart + keySize + sizeof(rid.pageNum), &rid.slotNum, sizeof(rid.slotNum));
 
-        int index = findKey(keyField, key, rid, true, true);
+        int index = directory.empty() ? 0 : findKey(keyField, key, rid, true, true);
         directory.insert(directory.begin() + index, { static_cast<short>(freeSpaceStart), static_cast<short>(dataSpace) });
         freeSpace = freeSpace - dataSpace - sizeof(Slot);
     }
@@ -198,6 +197,80 @@ namespace PeterDB{
         std::memcpy(key, keys + keySlot.offset, keySize);
         std::memcpy(&rid.pageNum, keys + keySlot.offset + keySize, sizeof(rid.pageNum));
         std::memcpy(&rid.slotNum, keys + keySlot.offset + keySize + sizeof(rid.pageNum), sizeof(rid.slotNum));
+    }
+
+    void Node::insertChild(const Attribute &keyField, void *key, int keyLength, int childPageId) {
+        int newKeySpace = keyLength + sizeof(childPageId);
+        freeSpace -= newKeySpace + sizeof(Slot);
+        if (directory.empty()){
+            std::memcpy(keys, key, keyLength);
+            std::memcpy(keys + keyLength, &childPageId, sizeof(childPageId));
+            directory.push_back({ 0, static_cast<short>(newKeySpace) });
+            return;
+        }
+
+        int formattedKeyLength = TypeVarChar != keyField.type ? keyField.length : keyLength - sizeof(RID::pageNum) - sizeof(RID::slotNum);
+        char formattedKey [formattedKeyLength + 4];
+        int copiedOffset = 0;
+        RID keyId;
+        if (TypeVarChar == keyField.type) {
+            std::memcpy(formattedKey, &formattedKeyLength, sizeof(formattedKeyLength));
+            copiedOffset += sizeof(formattedKeyLength);
+        }
+
+        std::memcpy(formattedKey + copiedOffset, key, formattedKeyLength);
+        std::memcpy(&keyId.pageNum, (char *)key + formattedKeyLength, sizeof(RID::pageNum));
+        std::memcpy(&keyId.slotNum, (char *)key + formattedKeyLength + sizeof(RID::pageNum), sizeof(RID::slotNum));
+        int freeSpaceStart = getFreeSpaceStart();
+        std::memcpy(keys + freeSpaceStart, key, keyLength);
+        std::memcpy(keys + freeSpaceStart + keyLength, &childPageId, sizeof(childPageId));
+        int index = findChildNode(keyField, formattedKey, keyId);
+        directory.insert(directory.begin() + index, { static_cast<short>(freeSpaceStart), static_cast<short>(newKeySpace) });
+    }
+
+    void Node::cleanDirectory() {
+        for (int i = 0; i < directory.size(); ++i) {
+            Slot current = directory.at(i);
+            if (current.offset == -1) {
+                directory.erase(directory.begin() + i);
+                freeSpace += sizeof(Slot);
+            }
+        }
+    }
+
+    void Node::split(char *newNode, InsertionChild *child) {
+        cleanDirectory();
+        NODE_TYPE_LEAF == type ? splitLeaf(newNode, child) : splitIntermediate(newNode, child);
+    }
+
+    void Node::splitLeaf(char *newNode, InsertionChild *child) {
+        int copiedLength = 0;
+        Node splitNode(NODE_TYPE_LEAF);
+        splitNode.nextPage = this->nextPage;
+        splitNode.keys = (char *) malloc(PAGE_SIZE);
+        int copyStartIndex = 0;
+        int dataToKeep = 0;
+        while (dataToKeep < PAGE_SIZE / 2) {
+            dataToKeep = directory.at(copyStartIndex).length;
+            copyStartIndex++;
+        }
+        child->keyLength = directory.at(copyStartIndex).length;
+        std::memcpy(child->leastChildValue, keys + directory.at(copyStartIndex).offset, directory.at(copyStartIndex).length);
+
+        for (int i = copyStartIndex; i < directory.size() ; ++i) {
+            Slot current = directory.at(i);
+            std::memcpy(splitNode.keys + copiedLength, this->keys + current.offset, current.length);
+            splitNode.freeSpace -= current.length + sizeof(Slot);
+            this->freeSpace += current.length + sizeof(Slot);
+            splitNode.directory.push_back(current);
+            copiedLength += current.length;
+            directory.erase(directory.begin() + i);
+        }
+        splitNode.populateBytes(newNode);
+    }
+
+    void Node::splitIntermediate(char *newNode, InsertionChild *child) {
+
     }
 
     std::string Node::toJsonString(const Attribute &keyField) {
@@ -235,6 +308,24 @@ namespace PeterDB{
 
     int Node::getKeyCount() const {
         return directory.size();
+    }
+
+    int Node::getFreeSpaceStart() {
+        return PAGE_SIZE - freeSpace - sizeof(Slot) * directory.size()
+               - sizeof(int) - sizeof(nextPage) - sizeof(freeSpace) - sizeof(type);
+    }
+
+    void Node::populateKey(AttrType attrType, char *key, RID &rid, int index) {
+        Slot slot = directory.at(index);
+        int keyLength = slot.length - sizeof(RID::pageNum) - sizeof(RID::slotNum) - sizeof(int);
+        int copiedOffset = 0;
+        if (TypeVarChar == attrType) {
+            std::memcpy(key, &keyLength, sizeof(keyLength));
+            copiedOffset += sizeof(keyLength);
+        }
+        std::memcpy(key + copiedOffset, keys + slot.offset, keyLength);
+        std::memcpy(&rid.pageNum, keys + slot.offset + keyLength, sizeof(rid.pageNum));
+        std::memcpy(&rid.slotNum, keys + slot.offset + keyLength + sizeof(rid.pageNum), sizeof(rid.slotNum));
     }
 
     Node::~Node() {

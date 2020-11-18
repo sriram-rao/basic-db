@@ -27,7 +27,7 @@ namespace PeterDB {
 
     RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
         Node root(NODE_TYPE_LEAF);
-        char *bytes = (char *) malloc(PAGE_SIZE);
+        char *bytes = (char *) malloc(PAGE_SIZE); // Move inside if block
         int rootPageId = ixFileHandle.getRootPageId();
         if (rootPageId == -1) {
             ixFileHandle.setRootPageId(ixFileHandle.getPageCount() + 1, true);
@@ -36,7 +36,11 @@ namespace PeterDB {
         }
         free(bytes);
 
-        insert(ixFileHandle, rootPageId, attribute, key, rid, nullptr);
+        InsertionChild newChild{};
+        newChild.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum));
+        newChild.newChildPresent = false;
+        insert(ixFileHandle, rootPageId, attribute, key, rid, &newChild);
+        free(newChild.leastChildValue);
         return 0;
     }
 
@@ -50,7 +54,7 @@ namespace PeterDB {
             int newChildId = currentNode.findChildNode(attribute, key, rid);
             free(bytes);
             insert(ixFileHandle, newChildId, attribute, key, rid, newChild);
-            if (nullptr == newChild)
+            if (!newChild->newChildPresent)
                 return;
 
             // Handle if there is new child
@@ -64,7 +68,7 @@ namespace PeterDB {
             // insert new child in correct node
             // setup newChild to form the new child here
 
-            // this is the root, create a new root (increase tree height)
+            // if this is the root, create a new root (increase tree height)
             // put the children
             // write new root page ID to disk
 
@@ -87,6 +91,26 @@ namespace PeterDB {
         }
 
         // Else split leaf node, set up newChild
+        char newLeaf [PAGE_SIZE];
+        currentNode.split(newLeaf, newChild);
+        int newPageId = ixFileHandle.appendPage(newLeaf);
+        currentNode.nextPage = newPageId;
+        currentNode.populateBytes(bytes);
+        ixFileHandle.writePage(nodePageId, bytes);
+        newChild->newChildPresent = true;
+        newChild->childNodePage = newPageId;
+
+        if (nodePageId == ixFileHandle.getRootPageId()) {
+            newChild->newChildPresent = false;
+            // if this is the root, make a new root and make children
+            Node newRoot(NODE_TYPE_INTERMEDIATE);
+            newRoot.nextPage = nodePageId;
+            newRoot.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+            // write all nodes to disk, set the root pointer to new root.
+            newRoot.populateBytes(bytes);
+            int newRootId = ixFileHandle.appendPage(bytes);
+            ixFileHandle.setRootPageId(newRootId);
+        }
 
         free(bytes);
     }

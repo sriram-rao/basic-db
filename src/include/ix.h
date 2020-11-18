@@ -152,14 +152,22 @@ namespace PeterDB {
         void deleteKey(const Attribute &keyField, int index, const void *key, const RID &rid);
         void getKeyData(const Attribute &attribute, int index, char *key, RID &rid);
         int getKeyCount() const;
+        void insertChild(const Attribute &attribute, void *key, int keyLength, int childPageId);
+        void split(char *newNode,  InsertionChild *child);
         bool hasSpace(int dataSpace) const;
         void populateBytes(char *bytes);
+
         std::string toJsonString(const Attribute &keyField);
 
         ~Node();
 
     private:
+        void splitLeaf(char *newNode,  InsertionChild *child);
+        void splitIntermediate(char *newNode,  InsertionChild *child);
+        void cleanDirectory();
         int getKeySize(int index, const Attribute &keyField) const;
+        int getFreeSpaceStart();
+        void populateKey(AttrType type, char *key, RID &rid, int index);
     };
 
     class InsertionChild{
@@ -167,6 +175,7 @@ namespace PeterDB {
         void *leastChildValue;
         int keyLength;
         int childNodePage;
+        bool newChildPresent;
     };
 
 }// namespace PeterDB
