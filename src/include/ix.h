@@ -146,10 +146,10 @@ namespace PeterDB {
         Node(char *bytes);
 
         int getOccupiedSpace() const;
-        int findChildNode(const Attribute &keyField, const void *key, const RID &rid);
+        int findChildNode(const Attribute &keyField, const void *key, const RID &rid, bool getIndex = false);
         int findKey(const Attribute &keyField, const void *key, const RID &rid, bool compareRid = true, bool getIndex = false);
         void insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid);
-        void deleteKey(const Attribute &keyField, int index, const void *key, const RID &rid);
+        void deleteKey(const Attribute &keyField, int index);
         void getKeyData(const Attribute &attribute, int index, char *key, RID &rid);
         int getKeyCount() const;
         void insertChild(const Attribute &attribute, void *key, int keyLength, int childPageId);
@@ -162,12 +162,10 @@ namespace PeterDB {
         ~Node();
 
     private:
-        void splitLeaf(char *newNode,  InsertionChild *child);
-        void splitIntermediate(char *newNode,  InsertionChild *child);
         void cleanDirectory();
         int getKeySize(int index, const Attribute &keyField) const;
         int getFreeSpaceStart();
-        void populateKey(AttrType type, char *key, RID &rid, int index);
+        void populateFormattedKey(AttrType type, char *key, RID &rid, int index);
     };
 
     class InsertionChild{

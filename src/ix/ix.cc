@@ -1,4 +1,5 @@
 #include "src/include/ix.h"
+#include <src/utils/compare_utils.h>
 
 namespace PeterDB {
     IndexManager &IndexManager::instance() {
@@ -37,7 +38,7 @@ namespace PeterDB {
         free(bytes);
 
         InsertionChild newChild{};
-        newChild.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum));
+        newChild.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum) + sizeof(int));
         newChild.newChildPresent = false;
         insert(ixFileHandle, rootPageId, attribute, key, rid, &newChild);
         free(newChild.leastChildValue);
@@ -51,31 +52,68 @@ namespace PeterDB {
 
         // If not a leaf node
         if (NODE_TYPE_INTERMEDIATE == currentNode.type) {
-            int newChildId = currentNode.findChildNode(attribute, key, rid);
+            int childId = currentNode.findChildNode(attribute, key, rid);
             free(bytes);
-            insert(ixFileHandle, newChildId, attribute, key, rid, newChild);
-            if (!newChild->newChildPresent)
-                return;
-
-            // Handle if there is new child
-            int spaceNeeded = newChild->keyLength;
-            if (currentNode.hasSpace(spaceNeeded)) {
-                // insert child
+            insert(ixFileHandle, childId, attribute, key, rid, newChild);
+            if (!newChild->newChildPresent) {
                 return;
             }
-            // Find index of new child
-            // split node, second half go to new node
-            // insert new child in correct node
-            // setup newChild to form the new child here
 
-            // if this is the root, create a new root (increase tree height)
+            bytes = (char *) malloc(PAGE_SIZE);
+            int spaceNeeded = newChild->keyLength;
+            if (currentNode.hasSpace(spaceNeeded)) {
+                currentNode.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+                currentNode.populateBytes(bytes);
+                ixFileHandle.writePage(nodePageId, bytes);
+                newChild->newChildPresent = false;
+                free(bytes);
+                return;
+            }
+
+            char newNode [PAGE_SIZE];
+            InsertionChild splitNode{};
+            splitNode.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum) + sizeof(int)); // TODO: Check that this is freed properly
+            currentNode.split(newNode, &splitNode);
+
+            if (CompareUtils::checkLessThan(attribute.type, newChild->leastChildValue, splitNode.leastChildValue)) { // format the child key values before compare
+                // add in old node
+                currentNode.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+                currentNode.populateBytes(bytes);
+            } else {
+                // add in split node
+                Node split (newNode);
+                split.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+                split.populateBytes(newNode);
+            }
+
+            ixFileHandle.writePage(nodePageId, bytes);
+            int splitNodePage = ixFileHandle.appendPage(newNode);
+            free(newChild->leastChildValue);
+            newChild->leastChildValue = splitNode.leastChildValue;
+            newChild->newChildPresent = true;
+            newChild->childNodePage = splitNodePage; // page ID after writing splitNode;
+            newChild->keyLength = splitNode.keyLength;
+
+            if (nodePageId != ixFileHandle.getRootPageId()) {
+                free(bytes);
+                return;
+            }
+            // This is the root, create a new root (increase tree height)
+            Node newRootNode(NODE_TYPE_INTERMEDIATE);
             // put the children
+            newRootNode.nextPage = nodePageId;
+            newRootNode.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+            newRootNode.populateBytes(bytes);
             // write new root page ID to disk
+            int newRootId = ixFileHandle.appendPage(bytes);
+            // write all nodes to disk, set the root pointer to new root.
+            ixFileHandle.setRootPageId(newRootId);
 
+            free(bytes);
             return;
         }
 
-        // If leaf node
+        // Leaf node
         // If node has space, insert in the right place
         int keySize = 4;
         if (TypeVarChar == attribute.type)
@@ -90,9 +128,19 @@ namespace PeterDB {
             return;
         }
 
-        // Else split leaf node, set up newChild
+        // Split leaf node, set up newChild
         char newLeaf [PAGE_SIZE];
         currentNode.split(newLeaf, newChild);
+
+        // format the leastChildValue before compare
+        if (CompareUtils::checkLessThan(attribute.type, key, newChild->leastChildValue)) {
+            currentNode.insertKey(attribute, spaceNeeded, key, rid);
+        } else {
+            Node newLeafNode (newLeaf);
+            newLeafNode.insertKey(attribute, spaceNeeded, key, rid);
+            newLeafNode.populateBytes(newLeaf);
+        }
+
         int newPageId = ixFileHandle.appendPage(newLeaf);
         currentNode.nextPage = newPageId;
         currentNode.populateBytes(bytes);
@@ -132,7 +180,7 @@ namespace PeterDB {
         if (-1 == indexToDelete)
             return -1; // Key not found
 
-        currentNode.deleteKey(attribute, indexToDelete, key, rid);
+        currentNode.deleteKey(attribute, indexToDelete);
         currentNode.populateBytes(bytes);
         ixFileHandle.writePage(keyPageId, bytes);
         free(bytes);
