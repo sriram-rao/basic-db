@@ -52,7 +52,8 @@ namespace PeterDB {
 
         // If not a leaf node
         if (NODE_TYPE_INTERMEDIATE == currentNode.type) {
-            int childId = currentNode.findChildNode(attribute, key, rid);
+            int childIndex;
+            int childId = currentNode.findChildNode(attribute, key, rid, childIndex); // TODO: Get the index here
             free(bytes);
             insert(ixFileHandle, childId, attribute, key, rid, newChild);
             if (!newChild->newChildPresent) {
@@ -62,7 +63,7 @@ namespace PeterDB {
             bytes = (char *) malloc(PAGE_SIZE);
             int spaceNeeded = newChild->keyLength;
             if (currentNode.hasSpace(spaceNeeded)) {
-                currentNode.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+                currentNode.insertChild(attribute, childIndex, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
                 currentNode.populateBytes(bytes);
                 ixFileHandle.writePage(nodePageId, bytes);
                 newChild->newChildPresent = false;
@@ -72,17 +73,25 @@ namespace PeterDB {
 
             char newNode [PAGE_SIZE];
             InsertionChild splitNode{};
-            splitNode.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum) + sizeof(int)); // TODO: Check that this is freed properly
+            splitNode.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum) + sizeof(int));
             currentNode.split(newNode, &splitNode);
+
+            char formattedKey [newChild->keyLength];
+            RID keyId{};
+            parseKey(attribute.type, newChild, formattedKey, keyId);
 
             if (CompareUtils::checkLessThan(attribute.type, newChild->leastChildValue, splitNode.leastChildValue)) { // format the child key values before compare
                 // add in old node
-                currentNode.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+                int childLocation;
+                currentNode.findChildNode(attribute, formattedKey, keyId, childLocation);
+                currentNode.insertChild(attribute, childLocation, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
                 currentNode.populateBytes(bytes);
             } else {
                 // add in split node
                 Node split (newNode);
-                split.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+                int childLocation;
+                split.findChildNode(attribute, formattedKey, keyId, childLocation);
+                split.insertChild(attribute, childLocation, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
                 split.populateBytes(newNode);
             }
 
@@ -103,7 +112,7 @@ namespace PeterDB {
             // put the children
             newRootNode.nextPage = nodePageId;
             newRootNode.keys = (char *) malloc(PAGE_SIZE);
-            newRootNode.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+            newRootNode.insertChild(attribute, 0, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
             newRootNode.populateBytes(bytes);
             // write new root page ID to disk
             int newRootId = ixFileHandle.appendPage(bytes);
@@ -155,7 +164,7 @@ namespace PeterDB {
             Node newRoot(NODE_TYPE_INTERMEDIATE);
             newRoot.nextPage = nodePageId;
             newRoot.keys = (char *) malloc(PAGE_SIZE);
-            newRoot.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+            newRoot.insertChild(attribute, 0, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
             // write all nodes to disk, set the root pointer to new root.
             newRoot.populateBytes(bytes);
             int newRootId = ixFileHandle.appendPage(bytes);
@@ -174,9 +183,10 @@ namespace PeterDB {
         // Find the leaf node with this key/rid
         int keyPageId = rootId;
         while (NODE_TYPE_LEAF != currentNode.type){
-            keyPageId = currentNode.findChildNode(attribute, key, rid);
+            int location;
+            keyPageId = currentNode.findChildNode(attribute, key, rid, location);
             ixFileHandle.readPage(keyPageId, bytes);
-            currentNode = Node(bytes);
+            currentNode.reload(bytes);
         }
         int indexToDelete = currentNode.findKey(attribute, key, rid);
         if (-1 == indexToDelete)
@@ -185,6 +195,10 @@ namespace PeterDB {
         currentNode.deleteKey(attribute, indexToDelete);
         currentNode.populateBytes(bytes);
         ixFileHandle.writePage(keyPageId, bytes);
+
+        if (cached(keyPageId))
+            refreshCache(bytes, keyPageId);
+
         free(bytes);
         return 0;
     }
@@ -206,6 +220,8 @@ namespace PeterDB {
         ix_ScanIterator.ixFileHandle = &ixFileHandle;
         ix_ScanIterator.pageNum = ixFileHandle.getRootPageId();
         ix_ScanIterator.slotNum = 0;
+        ix_ScanIterator.searching = true;
+        this->cachedPage = -1;
         return 0;
     }
 
@@ -215,5 +231,34 @@ namespace PeterDB {
         Node rootNode(bytes);
         out << rootNode.toJsonString(attribute);
         return 0;
+    }
+
+    void IndexManager::refreshCache(IXFileHandle &ixFileHandle, int pageId) {
+        char nodeBytes[PAGE_SIZE];
+        ixFileHandle.readPage(pageId, nodeBytes);
+        cachedNode.reload(nodeBytes);
+        cachedPage = pageId;
+    }
+
+    void IndexManager::refreshCache(char *bytes, int pageId) {
+        cachedNode.reload(bytes);
+        cachedPage = pageId;
+    }
+
+    bool IndexManager::cached(int pageId) const {
+        return cachedPage == pageId;
+    }
+
+    void IndexManager::parseKey(AttrType attrType, InsertionChild *child, char *key, RID &rid) {
+        int formattedKeyLength = TypeVarChar != attrType ? 4 : child->keyLength - sizeof(RID::pageNum) - sizeof(RID::slotNum);
+        int copiedOffset = 0;
+        if (TypeVarChar == attrType) {
+            std::memcpy(key, &formattedKeyLength, sizeof(formattedKeyLength));
+            copiedOffset += sizeof(formattedKeyLength);
+        }
+
+        std::memcpy(key + copiedOffset, child->leastChildValue, formattedKeyLength);
+        std::memcpy(&rid.pageNum, (char *)child->leastChildValue + formattedKeyLength, sizeof(RID::pageNum));
+        std::memcpy(&rid.slotNum, (char *)child->leastChildValue + formattedKeyLength + sizeof(RID::pageNum), sizeof(RID::slotNum));
     }
 } // namespace PeterDB

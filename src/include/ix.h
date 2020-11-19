@@ -17,14 +17,58 @@ namespace PeterDB {
 
     class IXFileHandle;
 
-    class Node;
+    class InsertionChild{
+    public:
+        void *leastChildValue;
+        int keyLength;
+        int childNodePage;
+        bool newChildPresent;
+    };
 
-    class InsertionChild;
+    class Node {
+    public:
+        char *keys{};
+        char type{}; // Intermediate node or leaf node
+        int freeSpace{};
+        int nextPage{};
+        vector<Slot> directory;
+
+        Node();
+        explicit Node(char type);
+        explicit Node(char *bytes);
+
+        void reload (char *bytes);
+
+        int getOccupiedSpace() const;
+        int findChildNode(const Attribute &keyField, const void *key, const RID &rid, int &index, bool compareRids = true);
+        int findKey(const Attribute &keyField, const void *key, const RID &rid, bool compareRid = true, bool getIndex = false);
+        void insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid);
+        void deleteKey(const Attribute &keyField, int index);
+        void getKeyData(const Attribute &attribute, int index, char *key, RID &rid); // returns false if slotnum was absent
+        int getKeyCount() const;
+        void insertChild(const Attribute &attribute, int index, void *key, int keyLength, int childPageId);
+        void split(char *newNode,  InsertionChild *child);
+        bool hasSpace(int dataSpace) const;
+        void populateBytes(char *bytes);
+        bool validateIndex(int index);
+
+        std::string toJsonString(const Attribute &keyField);
+
+        ~Node();
+
+    private:
+        void cleanDirectory();
+        int getKeySize(int index, const Attribute &keyField) const;
+        int getFreeSpaceStart();
+        void populateFormattedKey(AttrType type, char *key, RID &rid, int index);
+    };
 
     class IndexManager {
 
     public:
         static IndexManager &instance();
+        Node cachedNode;
+        int cachedPage{};
 
         // Create an index file.
         RC createFile(const std::string &fileName);
@@ -58,12 +102,19 @@ namespace PeterDB {
 
         void insert(IXFileHandle &ixFileHandle, int nodePageId, const Attribute &attribute, const void *key, const RID &rid, InsertionChild *newChild);
 
+        void refreshCache(IXFileHandle &ixFileHandle, int pageId);
+        void refreshCache(char *bytes, int pageId);
+
+        bool cached(int pageId) const;
+
     protected:
         IndexManager() = default;                                                   // Prevent construction
         ~IndexManager() = default;                                                  // Prevent unwanted destruction
         IndexManager(const IndexManager &) = default;                               // Prevent construction by copying
         IndexManager &operator=(const IndexManager &) = default;                    // Prevent assignment
 
+    private:
+        void parseKey(AttrType attrType, InsertionChild *child, char *key, RID &rid);
     };
 
     class IXFileHandle {
@@ -132,49 +183,7 @@ namespace PeterDB {
         void *highKey;
         bool lowKeyInclusive;
         bool highKeyInclusive;
+        bool searching;
     };
-
-    class Node {
-    public:
-        char *keys;
-        char type; // Intermediate node or leaf node
-        int freeSpace;
-        int nextPage;
-        vector<Slot> directory;
-
-        Node(char type);
-        Node(char *bytes);
-
-        int getOccupiedSpace() const;
-        int findChildNode(const Attribute &keyField, const void *key, const RID &rid, bool getIndex = false);
-        int findKey(const Attribute &keyField, const void *key, const RID &rid, bool compareRid = true, bool getIndex = false);
-        void insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid);
-        void deleteKey(const Attribute &keyField, int index);
-        void getKeyData(const Attribute &attribute, int index, char *key, RID &rid);
-        int getKeyCount() const;
-        void insertChild(const Attribute &attribute, void *key, int keyLength, int childPageId);
-        void split(char *newNode,  InsertionChild *child);
-        bool hasSpace(int dataSpace) const;
-        void populateBytes(char *bytes);
-
-        std::string toJsonString(const Attribute &keyField);
-
-        ~Node();
-
-    private:
-        void cleanDirectory();
-        int getKeySize(int index, const Attribute &keyField) const;
-        int getFreeSpaceStart();
-        void populateFormattedKey(AttrType type, char *key, RID &rid, int index);
-    };
-
-    class InsertionChild{
-    public:
-        void *leastChildValue;
-        int keyLength;
-        int childNodePage;
-        bool newChildPresent;
-    };
-
 }// namespace PeterDB
 #endif // _ix_h_
