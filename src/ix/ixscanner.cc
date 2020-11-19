@@ -53,13 +53,12 @@ namespace PeterDB {
     }
 
     bool IX_ScanIterator::meetsCondition(void *key) {
-//        if (CompareUtils::checkLessThan(attribute.type, key, lowKey))
-//            return false;
+        if (CompareUtils::checkLessThan(attribute.type, key, lowKey))
+            return false;
 
-        if (
-//                (nullptr == lowKey
-//                || CompareUtils::checkGreaterThan(attribute.type, key, lowKey)
-//                || (lowKeyInclusive && CompareUtils::checkEqual(attribute.type, key, lowKey))) &&
+        if ((nullptr == lowKey
+                || CompareUtils::checkGreaterThan(attribute.type, key, lowKey)
+                || (lowKeyInclusive && CompareUtils::checkEqual(attribute.type, key, lowKey))) &&
             (nullptr == highKey
                 || CompareUtils::checkLessThan(attribute.type, key, highKey)
                 || (highKeyInclusive && CompareUtils::checkEqual(attribute.type, key, highKey))))
