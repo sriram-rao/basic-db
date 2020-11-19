@@ -17,7 +17,7 @@ namespace PeterDB {
         // Go to the correct leaf
         while (NODE_TYPE_INTERMEDIATE == ixManager.cachedNode.type) {
             int location;
-            int pageId = nullptr == lowKey ? ixManager.cachedNode.nextPage : ixManager.cachedNode.findChildNode(attribute, lowKey, {}, location, false);
+            int pageId = nullptr == lowKey ? ixManager.cachedNode.nextPage : ixManager.cachedNode.findChildNode(attribute, lowKey, -1, -1, location, true);
             pageNum = pageId;
             ixManager.refreshCache(*ixFileHandle, pageId);
         }
@@ -41,7 +41,7 @@ namespace PeterDB {
         incrementCursor(ixManager.cachedNode.getKeyCount(), ixManager.cachedNode.nextPage);
 
         if (!meetsCondition(key))
-            getNextEntry(rid, key);
+            return getNextEntry(rid, key);
 
         return 0;
     }
@@ -53,12 +53,15 @@ namespace PeterDB {
     }
 
     bool IX_ScanIterator::meetsCondition(void *key) {
-        if (CompareUtils::checkLessThan(attribute.type, key, lowKey))
-            return false;
+//        if (CompareUtils::checkLessThan(attribute.type, key, lowKey))
+//            return false;
 
-        if ((CompareUtils::checkGreaterThan(attribute.type, key, lowKey)
-                || (lowKeyInclusive && CompareUtils::checkEqual(attribute.type, key, lowKey)))
-            && (CompareUtils::checkLessThan(attribute.type, key, highKey)
+        if (
+//                (nullptr == lowKey
+//                || CompareUtils::checkGreaterThan(attribute.type, key, lowKey)
+//                || (lowKeyInclusive && CompareUtils::checkEqual(attribute.type, key, lowKey))) &&
+            (nullptr == highKey
+                || CompareUtils::checkLessThan(attribute.type, key, highKey)
                 || (highKeyInclusive && CompareUtils::checkEqual(attribute.type, key, highKey))))
             return true;
 

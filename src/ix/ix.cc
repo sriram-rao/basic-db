@@ -53,7 +53,7 @@ namespace PeterDB {
         // If not a leaf node
         if (NODE_TYPE_INTERMEDIATE == currentNode.type) {
             int childIndex;
-            int childId = currentNode.findChildNode(attribute, key, rid, childIndex); // TODO: Get the index here
+            int childId = currentNode.findChildNode(attribute, key, rid.pageNum, rid.slotNum, childIndex); // TODO: Get the index here
             free(bytes);
             insert(ixFileHandle, childId, attribute, key, rid, newChild);
             if (!newChild->newChildPresent) {
@@ -83,14 +83,14 @@ namespace PeterDB {
             if (CompareUtils::checkLessThan(attribute.type, newChild->leastChildValue, splitNode.leastChildValue)) { // format the child key values before compare
                 // add in old node
                 int childLocation;
-                currentNode.findChildNode(attribute, formattedKey, keyId, childLocation);
+                currentNode.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
                 currentNode.insertChild(attribute, childLocation, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
                 currentNode.populateBytes(bytes);
             } else {
                 // add in split node
                 Node split (newNode);
                 int childLocation;
-                split.findChildNode(attribute, formattedKey, keyId, childLocation);
+                split.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
                 split.insertChild(attribute, childLocation, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
                 split.populateBytes(newNode);
             }
@@ -184,7 +184,7 @@ namespace PeterDB {
         int keyPageId = rootId;
         while (NODE_TYPE_LEAF != currentNode.type){
             int location;
-            keyPageId = currentNode.findChildNode(attribute, key, rid, location);
+            keyPageId = currentNode.findChildNode(attribute, key, rid.pageNum, rid.slotNum, location);
             ixFileHandle.readPage(keyPageId, bytes);
             currentNode.reload(bytes);
         }

@@ -40,7 +40,7 @@ namespace PeterDB {
         void reload (char *bytes);
 
         int getOccupiedSpace() const;
-        int findChildNode(const Attribute &keyField, const void *key, const RID &rid, int &index, bool compareRids = true);
+        int findChildNode(const Attribute &keyField, const void *key, long pageId, int slotId, int &index, bool compareRids = true);
         int findKey(const Attribute &keyField, const void *key, const RID &rid, bool compareRid = true, bool getIndex = false);
         void insertKey(const Attribute &keyField, int dataSpace, const void *key, const RID &rid);
         void deleteKey(const Attribute &keyField, int index);

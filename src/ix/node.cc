@@ -88,7 +88,7 @@ namespace PeterDB{
         return freeSpace > spaceNeeded;
     }
 
-    int Node::findChildNode(const Attribute &keyField, const void *key, const RID &rid, int &index, bool compareRids){
+    int Node::findChildNode(const Attribute &keyField, const void *key, long pageId, int slotId, int &index, bool compareRids){
         // Key is expected formatted with varchar length at the start
 
         // Find the correct sub-tree, return child page ID
@@ -105,7 +105,7 @@ namespace PeterDB{
             return nextPage;
         }
         if (CompareUtils::checkEqual(keyField.type, key, firstKey) && compareRids &&
-            (rid.pageNum < firstRid.pageNum || (rid.pageNum == firstRid.pageNum && rid.slotNum < firstRid.slotNum))) {
+            (pageId < firstRid.pageNum || (pageId == firstRid.pageNum && slotId < firstRid.slotNum))) {
             index = 0;
             return nextPage;
         }
@@ -139,8 +139,14 @@ namespace PeterDB{
             populateFormattedKey(keyField.type, nextKey, nextRid, nextIndex);
 
             // current key <= given key < next key
-            if ((CompareUtils::checkGreaterThan(keyField.type, key, currentKey) || CompareUtils::checkEqual(keyField.type, key, currentKey)) &&
-                    CompareUtils::checkLessThan(keyField.type, key, nextKey)) {
+            if ((CompareUtils::checkGreaterThan(keyField.type, key, currentKey)
+                    || (CompareUtils::checkEqual(keyField.type, key, currentKey) &&
+                        (pageId > currentRid.pageNum || (pageId == currentRid.pageNum && slotId >= currentRid.slotNum) ))
+                ) &&
+                (CompareUtils::checkLessThan(keyField.type, key, nextKey)
+                    || (CompareUtils::checkEqual(keyField.type, key, nextKey) &&
+                        (pageId < nextRid.pageNum || (pageId == nextRid.pageNum && slotId < nextRid.slotNum)))
+                 )) {
                 index = nextIndex;
                 int childPage = -1;
                 std::memcpy(&childPage, keys + current.offset + current.length - sizeof(childPage), sizeof(childPage));
@@ -195,8 +201,18 @@ namespace PeterDB{
                 continue;
             }
 
-            if (!compareRid)
-                return middleIndex;
+            if (!compareRid) {
+                while(middleIndex >= 0 && CompareUtils::checkEqual(keyField.type, middleKey, key)){
+                    middle = directory.at(middleIndex);
+                    if (TypeVarChar == keyField.type) {
+                        std::memcpy(middleKey, &middleKeyLength, sizeof(middleKeyLength));
+                        copiedOffset += sizeof(middleKeyLength);
+                    }
+                    std::memcpy(middleKey + copiedOffset, keys + middle.offset, middleKeyLength);
+                    middleIndex--;
+                }
+                return middleIndex + 1;
+            }
 
             unsigned keyPageNum;
             unsigned short keySlotNum;
