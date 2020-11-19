@@ -27,15 +27,15 @@ namespace PeterDB {
     }
 
     RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
-        Node root(NODE_TYPE_LEAF);
-        char *bytes = (char *) malloc(PAGE_SIZE); // Move inside if block
         int rootPageId = ixFileHandle.getRootPageId();
         if (rootPageId == -1) {
             ixFileHandle.setRootPageId(ixFileHandle.getPageCount() + 1, true);
+            Node root(NODE_TYPE_LEAF);
+            char *bytes = (char *) malloc(PAGE_SIZE); // Move inside if block
             root.populateBytes(bytes);
             rootPageId = ixFileHandle.appendPage(bytes);
+            free(bytes);
         }
-        free(bytes);
 
         InsertionChild newChild{};
         newChild.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum) + sizeof(int));
@@ -102,6 +102,7 @@ namespace PeterDB {
             Node newRootNode(NODE_TYPE_INTERMEDIATE);
             // put the children
             newRootNode.nextPage = nodePageId;
+            newRootNode.keys = (char *) malloc(PAGE_SIZE);
             newRootNode.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
             newRootNode.populateBytes(bytes);
             // write new root page ID to disk
@@ -153,6 +154,7 @@ namespace PeterDB {
             // if this is the root, make a new root and make children
             Node newRoot(NODE_TYPE_INTERMEDIATE);
             newRoot.nextPage = nodePageId;
+            newRoot.keys = (char *) malloc(PAGE_SIZE);
             newRoot.insertChild(attribute, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
             // write all nodes to disk, set the root pointer to new root.
             newRoot.populateBytes(bytes);

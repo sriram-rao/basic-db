@@ -12,6 +12,9 @@ namespace PeterDB {
         char nodeBytes[PAGE_SIZE];
         ixFileHandle->readPage(pageNum, nodeBytes);
         Node node(nodeBytes);
+        if (NODE_TYPE_INTERMEDIATE == node.type) {
+            // Go to leaf page using least key condition
+        }
 
         // Go to the right leaf
         node.getKeyData(attribute, slotNum, static_cast<char *>(key), rid);

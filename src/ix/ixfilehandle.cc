@@ -97,7 +97,7 @@ namespace PeterDB {
     }
 
     int IXFileHandle::appendPage(const void *data) {
-        ixFile.seekp((getPageCount()) * PAGE_SIZE, ios::beg);
+        ixFile.seekp(getPageCount() * PAGE_SIZE, ios::beg);
         ixFile.write(reinterpret_cast<char *>(const_cast<void *>(data)), PAGE_SIZE);
         ixFile.flush();
         ixAppendPageCounter++;
@@ -107,7 +107,7 @@ namespace PeterDB {
     void IXFileHandle::setRootPageId(int rootId, bool create) {
         char bytes [PAGE_SIZE];
         std::memcpy(bytes, &rootId, sizeof(rootId));
-        create ? appendPage(bytes) : writePage(HIDDEN_PAGE_COUNT, bytes);
+        create ? appendPage(bytes) : writePage(IX_HIDDEN_PAGE_COUNT, bytes);
     }
 
     int IXFileHandle::getRootPageId() {
