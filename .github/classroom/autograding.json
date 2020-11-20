@@ -371,9 +371,9 @@
       "points": null
     },
     {
-      "name": "IX_File_Test.create_open_close_index",
+      "name": "IX_File_Test.create_open_close_destory_index",
       "setup": "",
-      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R IX_File_Test.create_open_close_index",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R IX_File_Test.create_open_close_destory_index",
       "input": "",
       "output": "",
       "comparison": "included",
@@ -481,9 +481,9 @@
       "points": null
     },
     {
-      "name": "IX_Test.varchar_compact_size",
+      "name": "IX_Test.scan_varchar_with_compact_size",
       "setup": "",
-      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R IX_Test.varchar_compact_size",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R IX_Test.scan_varchar_with_compact_size",
       "input": "",
       "output": "",
       "comparison": "included",
@@ -491,9 +491,9 @@
       "points": null
     },
     {
-      "name": "IX_Test.check_split",
+      "name": "IX_Test.split_rotate_and_promote_on_insertion",
       "setup": "",
-      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R IX_Test.check_split",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R IX_Test.split_rotate_and_promote_on_insertion",
       "input": "",
       "output": "",
       "comparison": "included",
