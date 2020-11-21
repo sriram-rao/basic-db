@@ -76,11 +76,15 @@ namespace PeterDB {
             splitNode.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum) + sizeof(int));
             currentNode.split(newNode, &splitNode);
 
+            char formattedSplitKey [splitNode.keyLength];
+            RID splitId{};
+            parseKey(attribute.type, &splitNode, formattedSplitKey, splitId);
+
             char formattedKey [newChild->keyLength];
             RID keyId{};
             parseKey(attribute.type, newChild, formattedKey, keyId);
 
-            if (CompareUtils::checkLessThan(attribute.type, newChild->leastChildValue, splitNode.leastChildValue)) { // TODO: format the child key values before compare
+            if (CompareUtils::checkLessThan(attribute.type, formattedKey, formattedSplitKey)) {
                 // add in old node
                 int childLocation;
                 currentNode.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
@@ -142,8 +146,11 @@ namespace PeterDB {
         char newLeaf [PAGE_SIZE];
         currentNode.split(newLeaf, newChild);
 
-        // format the leastChildValue before compare
-        if (CompareUtils::checkLessThan(attribute.type, key, newChild->leastChildValue)) {
+        char formattedChildKey [newChild->keyLength];
+        RID childKeyId{};
+        parseKey(attribute.type, newChild, formattedChildKey, childKeyId);
+
+        if (CompareUtils::checkLessThan(attribute.type, key, formattedChildKey)) {
             currentNode.insertKey(attribute, spaceNeeded, key, rid);
         } else {
             Node newLeafNode (newLeaf);
