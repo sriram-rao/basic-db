@@ -169,19 +169,21 @@ namespace PeterDB{
             return -1;
 
         // Find the correct leaf entry
-        int left  = 0;
-        int right = directory.size() - 1;
+        int left  = 0; // initialise to first non-empty index
+        while (left < directory.size() && directory.at(left).offset == -1)
+            left++;
+
+        int right = directory.size() - 1; // initialise to last non-empty index
+        while (right >= 0 && directory.at(right).offset == -1)
+            right--;
 
         while (left <= right) {
             int middleIndex = (left + right) / 2;
             Slot middle = directory.at(middleIndex);
-            while (middle.offset == -1) {
-                --middleIndex;
-                if (middleIndex < 0)
-                    break;
+            while (middle.offset == -1 && middleIndex <= right) {
+                middleIndex++;
                 middle = directory.at(middleIndex);
             }
-            if (middleIndex < 0) break;
 
             int middleKeyLength = middle.length - sizeof(RID::pageNum) - sizeof(RID::slotNum);
             char middleKey[middleKeyLength + sizeof(int)];
@@ -327,20 +329,29 @@ namespace PeterDB{
             std::memcpy(&pageId, keys + copyStart.offset + copyStart.length - sizeof(pageId), sizeof(pageId));
             splitNode.nextPage = pageId;
             child->keyLength -= sizeof(pageId);
+
+            // We copied over the least child and left-most child page
+            // These don't go into split's keys and we can remove them from current node
+            int dataToMove = PAGE_SIZE - copyStart.offset - copyStart.length;
+            std::memmove(this->keys + copyStart.offset, this->keys + copyStart.offset + copyStart.length, dataToMove);
+
+            // Fixing offsets for all moved entries
+            for (auto & j : directory)
+                if (j.offset > copyStart.offset)
+                    j.offset -= copyStart.length;
+            this->freeSpace += copyStart.length + sizeof(Slot);
+            directory.erase(directory.begin() + copyStartIndex);
         }
 
         int copiedLength = 0, copyEndIndex = directory.size();
         for (int i = copyStartIndex; i < copyEndIndex; ++i) {
-            if (NODE_TYPE_INTERMEDIATE == type && i == copyStartIndex) {
-                directory.erase(directory.begin() + copyStartIndex);
-                continue;
-            }
+            // Move keys from current to split node
             Slot current = directory.at(copyStartIndex);
             std::memcpy(splitNode.keys + copiedLength, this->keys + current.offset, current.length);
             int dataToMove = PAGE_SIZE - current.offset - current.length;
             std::memmove(this->keys + current.offset, this->keys + current.offset + current.length, dataToMove);
 
-            // Fixing offsets for all moved entries
+            // Fixing offsets in current for all moved entries
             for (auto & j : directory)
                 if (j.offset > current.offset)
                     j.offset -= current.length;

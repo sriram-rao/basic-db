@@ -53,7 +53,7 @@ namespace PeterDB {
         // If not a leaf node
         if (NODE_TYPE_INTERMEDIATE == currentNode.type) {
             int childIndex;
-            int childId = currentNode.findChildNode(attribute, key, rid.pageNum, rid.slotNum, childIndex); // TODO: Get the index here
+            int childId = currentNode.findChildNode(attribute, key, rid.pageNum, rid.slotNum, childIndex);
             free(bytes);
             insert(ixFileHandle, childId, attribute, key, rid, newChild);
             if (!newChild->newChildPresent) {
@@ -80,12 +80,13 @@ namespace PeterDB {
             RID keyId{};
             parseKey(attribute.type, newChild, formattedKey, keyId);
 
-            if (CompareUtils::checkLessThan(attribute.type, newChild->leastChildValue, splitNode.leastChildValue)) { // format the child key values before compare
+            if (CompareUtils::checkLessThan(attribute.type, newChild->leastChildValue, splitNode.leastChildValue)) { // TODO: format the child key values before compare
                 // add in old node
                 int childLocation;
                 currentNode.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
                 currentNode.insertChild(attribute, childLocation, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
                 currentNode.populateBytes(bytes);
+                ixFileHandle.writePage(nodePageId, bytes);
             } else {
                 // add in split node
                 Node split (newNode);
@@ -95,7 +96,6 @@ namespace PeterDB {
                 split.populateBytes(newNode);
             }
 
-            ixFileHandle.writePage(nodePageId, bytes);
             int splitNodePage = ixFileHandle.appendPage(newNode);
             free(newChild->leastChildValue);
             newChild->leastChildValue = splitNode.leastChildValue;
