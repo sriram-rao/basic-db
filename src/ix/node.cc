@@ -92,8 +92,13 @@ namespace PeterDB{
         // Key is expected formatted with varchar length at the start
 
         // Find the correct sub-tree, return child page ID
-        if (directory.empty() || NODE_TYPE_LEAF == type)
+        if (NODE_TYPE_LEAF == type)
             return -1;
+
+        if (directory.empty()) {
+            index = 0;
+            return nextPage;
+        }
 
         char firstKey [directory.at(0).length + sizeof(int)]; // Why adding sizeof(int)?
         RID firstRid {};
@@ -318,6 +323,7 @@ namespace PeterDB{
             dataToKeep += directory.at(copyStartIndex).length + sizeof(Slot);
             copyStartIndex++;
         }
+        copyStartIndex--;
 
         Slot copyStart = directory.at(copyStartIndex);
         child->keyLength = copyStart.length;
@@ -365,29 +371,97 @@ namespace PeterDB{
         splitNode.populateBytes(newNode);
     }
 
-    std::string Node::toJsonString(const Attribute &keyField) {
-        std::string json = "{ \"keys\": [";
+    std::string Node::toJsonKeys(const Attribute &keyField) {
+        return NODE_TYPE_INTERMEDIATE == type
+            ? toJsonKeysIntermediate(keyField)
+            : toJsonKeysLeaf(keyField);
+    }
 
-        for(int i = 0; i < directory.size(); i++) {
+    std::string Node::toJsonKeysLeaf(const Attribute &keyField) {
+        string keysJson = "\"keys\": [";
+        std::string previousKey;
+        bool processedKeys = false;
+        int currentKeyCount = 0;
+
+        for(int i = 0; i < directory.size(); ++i) {
             Slot current = directory.at(i);
             if (-1 == current.offset)
                 continue;
 
             int keySize = getKeySize(i, keyField);
-            char key [keySize];
+            char *key = (char *) malloc(keySize);
             std::memcpy(key, keys + current.offset, keySize);
-            json.append("\"" + ParseUtils::parse(keyField.type, key) + ":[");
-            unsigned pageNum; unsigned short slotNum;
+
+            std::string currentKey = ParseUtils::parse(keyField.type, key, keySize);
+            free(key);
+            if (currentKey != previousKey) {
+                currentKeyCount = 0;
+                std::string prefix = !processedKeys ? "\"" : "]\",\"";
+                std::string suffix = ":[";
+                keysJson.append(prefix.append(currentKey + suffix));
+                processedKeys = true;
+            }
+
+            unsigned pageNum;
+            unsigned short slotNum;
             std::memcpy(&pageNum, keys + current.offset + keySize, sizeof(pageNum));
             std::memcpy(&slotNum, keys + current.offset + keySize + sizeof(pageNum), sizeof(slotNum));
-            json.append("(" + to_string(pageNum) + "," + to_string(slotNum) + ")");
-            json.append("]\"");
 
-            if (i < directory.size() - 1)
-                json.append(", ");
+            std::string comma = currentKeyCount > 0 ? "," : "";
+            keysJson.append(comma + "(" + to_string(pageNum) + "," + to_string(slotNum) + ")");
+            ++currentKeyCount;
+
+            if (previousKey != currentKey)
+                previousKey = currentKey;
         }
-        json.append("]}");
-        return json;
+        if (processedKeys)
+            keysJson.append("]\""); // closing last key's RID list
+        keysJson.append("]"); // closing keys array
+        return keysJson;
+    }
+
+    std::string Node::toJsonKeysIntermediate(const Attribute &keyField) {
+        string keysJson = "\"keys\":[";
+        bool first = true;
+
+        for(int i = 0; i < directory.size(); ++i) {
+            if (-1 == directory.at(i).offset)
+                continue;
+
+            Slot current = directory.at(i);
+            int keySize = getKeySize(i, keyField);
+            char *key = (char *) malloc(keySize);
+            std::memcpy(key, keys + current.offset, keySize);
+            std::string currentKey = ParseUtils::parse(keyField.type, key, keySize);
+            free(key);
+            std::string prefix = first ? "\"" : "\",\"";
+            keysJson.append(prefix + currentKey);
+            first = false;
+        }
+        if (!first)
+            keysJson.append("\""); // closing last key quote
+        keysJson.append("]"); // closing the keys array
+        return keysJson;
+    }
+
+    std::vector<int> Node::getChildren(const Attribute &keyField) {
+        std::vector<int> childPages;
+        if (NODE_TYPE_LEAF == type)
+            return childPages;
+
+        if (-1 != nextPage)
+            childPages.push_back(nextPage);
+
+        for (auto & slot : directory) {
+            if (-1 == slot.offset)
+                continue;
+
+            int pageId = -1;
+            std::memcpy(&pageId, keys + slot.offset + slot.length - sizeof(pageId), sizeof(pageId));
+            childPages.push_back(pageId);
+        }
+
+        return childPages;
     }
 
     int Node::getKeySize(int index, const Attribute &keyField) const {
@@ -395,7 +469,10 @@ namespace PeterDB{
             return 4;
 
         Slot keySlot = directory.at(index);
-        return keySlot.length - static_cast<int>(sizeof(unsigned)) - static_cast<int>(sizeof(unsigned short ));
+        int keySize = keySlot.length - static_cast<int>(sizeof(unsigned)) - static_cast<int>(sizeof(unsigned short));
+        if (NODE_TYPE_INTERMEDIATE == type)
+            keySize -= sizeof(int);
+        return keySize;
     }
 
     int Node::getKeyCount() const {

@@ -14,14 +14,14 @@ using namespace std;
 namespace PeterDB {
     class ParseUtils {
     public:
-        static string parse(AttrType type, char *data) {
+        static string parse(AttrType type, char *data, int length) {
             switch (type) {
                 case TypeInt:
                     return parseInt(data);
                 case TypeReal:
                     return parseReal(data);
                 case TypeVarChar:
-                    return string (data);
+                    return string (data, length);
             }
         }
 
@@ -40,7 +40,7 @@ namespace PeterDB {
         static string parseVarchar(void* data){
             int fieldLength;
             std::memcpy(&fieldLength, data, 4);
-            char field [fieldLength + 2];
+            char field [fieldLength + 1]; 
             std::memcpy(field, (char *)data + 4, fieldLength);
             field[fieldLength] = '\0';
             return string (field);
