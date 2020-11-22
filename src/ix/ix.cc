@@ -198,8 +198,10 @@ namespace PeterDB {
             currentNode.reload(bytes);
         }
         int indexToDelete = currentNode.findKey(attribute, key, rid);
-        if (-1 == indexToDelete)
+        if (-1 == indexToDelete) {
+            free(bytes);
             return -1; // Key not found
+        }
 
         currentNode.deleteKey(attribute, indexToDelete);
         currentNode.populateBytes(bytes);
