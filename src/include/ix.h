@@ -52,7 +52,8 @@ namespace PeterDB {
         void populateBytes(char *bytes);
         bool validateIndex(int index);
 
-        std::string toJsonString(const Attribute &keyField);
+        std::string toJsonKeys(const Attribute &keyField);
+        std::vector<int> getChildren(const Attribute &keyField);
 
         ~Node();
 
@@ -61,6 +62,9 @@ namespace PeterDB {
         int getKeySize(int index, const Attribute &keyField) const;
         int getFreeSpaceStart();
         void populateFormattedKey(AttrType type, char *key, RID &rid, int index);
+
+        std::string toJsonKeysLeaf(const Attribute &keyField);
+        std::string toJsonKeysIntermediate(const Attribute &keyField);
     };
 
     class IndexManager {
@@ -101,6 +105,8 @@ namespace PeterDB {
         RC printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const;
 
         void insert(IXFileHandle &ixFileHandle, int nodePageId, const Attribute &attribute, const void *key, const RID &rid, InsertionChild *newChild);
+
+        std::string getJson(IXFileHandle &ixFileHandle, const Attribute &attribute, int pageId) const;
 
         void refreshCache(IXFileHandle &ixFileHandle, int pageId);
         void refreshCache(char *bytes, int pageId);

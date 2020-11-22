@@ -53,7 +53,7 @@ namespace PeterDB {
         // If not a leaf node
         if (NODE_TYPE_INTERMEDIATE == currentNode.type) {
             int childIndex;
-            int childId = currentNode.findChildNode(attribute, key, rid.pageNum, rid.slotNum, childIndex); // TODO: Get the index here
+            int childId = currentNode.findChildNode(attribute, key, rid.pageNum, rid.slotNum, childIndex);
             free(bytes);
             insert(ixFileHandle, childId, attribute, key, rid, newChild);
             if (!newChild->newChildPresent) {
@@ -71,21 +71,24 @@ namespace PeterDB {
                 return;
             }
 
-            char newNode [PAGE_SIZE];
+            char *newNode = (char *) malloc(PAGE_SIZE);
             InsertionChild splitNode{};
             splitNode.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum) + sizeof(int));
             currentNode.split(newNode, &splitNode);
+
+            char formattedSplitKey [splitNode.keyLength];
+            RID splitId{};
+            parseKey(attribute.type, &splitNode, formattedSplitKey, splitId);
 
             char formattedKey [newChild->keyLength];
             RID keyId{};
             parseKey(attribute.type, newChild, formattedKey, keyId);
 
-            if (CompareUtils::checkLessThan(attribute.type, newChild->leastChildValue, splitNode.leastChildValue)) { // format the child key values before compare
+            if (CompareUtils::checkLessThan(attribute.type, formattedKey, formattedSplitKey)) {
                 // add in old node
                 int childLocation;
                 currentNode.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
                 currentNode.insertChild(attribute, childLocation, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
-                currentNode.populateBytes(bytes);
             } else {
                 // add in split node
                 Node split (newNode);
@@ -95,8 +98,10 @@ namespace PeterDB {
                 split.populateBytes(newNode);
             }
 
+            currentNode.populateBytes(bytes);
             ixFileHandle.writePage(nodePageId, bytes);
             int splitNodePage = ixFileHandle.appendPage(newNode);
+            free(newNode);
             free(newChild->leastChildValue);
             newChild->leastChildValue = splitNode.leastChildValue;
             newChild->newChildPresent = true;
@@ -139,11 +144,14 @@ namespace PeterDB {
         }
 
         // Split leaf node, set up newChild
-        char newLeaf [PAGE_SIZE];
+        char *newLeaf = (char *) malloc(PAGE_SIZE);
         currentNode.split(newLeaf, newChild);
 
-        // format the leastChildValue before compare
-        if (CompareUtils::checkLessThan(attribute.type, key, newChild->leastChildValue)) {
+        char formattedChildKey [newChild->keyLength];
+        RID childKeyId{};
+        parseKey(attribute.type, newChild, formattedChildKey, childKeyId);
+
+        if (CompareUtils::checkLessThan(attribute.type, key, formattedChildKey)) {
             currentNode.insertKey(attribute, spaceNeeded, key, rid);
         } else {
             Node newLeafNode (newLeaf);
@@ -152,6 +160,7 @@ namespace PeterDB {
         }
 
         int newPageId = ixFileHandle.appendPage(newLeaf);
+        free(newLeaf);
         currentNode.nextPage = newPageId;
         currentNode.populateBytes(bytes);
         ixFileHandle.writePage(nodePageId, bytes);
@@ -189,8 +198,10 @@ namespace PeterDB {
             currentNode.reload(bytes);
         }
         int indexToDelete = currentNode.findKey(attribute, key, rid);
-        if (-1 == indexToDelete)
+        if (-1 == indexToDelete) {
+            free(bytes);
             return -1; // Key not found
+        }
 
         currentNode.deleteKey(attribute, indexToDelete);
         currentNode.populateBytes(bytes);
@@ -226,11 +237,39 @@ namespace PeterDB {
     }
 
     RC IndexManager::printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const {
-        char bytes[PAGE_SIZE];
-        ixFileHandle.readPage(ixFileHandle.getRootPageId(), bytes);
-        Node rootNode(bytes);
-        out << rootNode.toJsonString(attribute);
+        out << getJson(ixFileHandle, attribute, ixFileHandle.getRootPageId());
         return 0;
+    }
+
+    std::string IndexManager::getJson(IXFileHandle &ixFileHandle, const Attribute &attribute, int pageId) const {
+        string json = "{";
+
+        char *bytes = (char *)malloc(PAGE_SIZE);
+        ixFileHandle.readPage(pageId, bytes);
+        Node currentNode(bytes);
+        free(bytes);
+
+        json.append(currentNode.toJsonKeys(attribute));
+
+        if (NODE_TYPE_INTERMEDIATE == currentNode.type) {
+            string childrenJson = "\"children\":[";
+            // get the children and call recursively for each child.
+            bool firstEntry = true;
+            for(int & childPage : currentNode.getChildren(attribute) ) {
+                if (!firstEntry)
+                    childrenJson.append(",");
+                childrenJson.append(getJson(ixFileHandle, attribute, childPage));
+                firstEntry = false;
+            }
+            childrenJson.append("]"); // close the children array
+            json.append(",");
+            json.append(childrenJson);
+        }
+
+        json.append(", \"page\": " + to_string(pageId));
+
+        json.append("}");
+        return json;
     }
 
     void IndexManager::refreshCache(IXFileHandle &ixFileHandle, int pageId) {
