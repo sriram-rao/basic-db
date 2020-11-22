@@ -395,7 +395,7 @@ namespace PeterDB{
 
             std::string currentKey = ParseUtils::parse(keyField.type, key, keySize);
             free(key);
-            if (currentKey != previousKey) {
+            if ((!processedKeys && currentKey.empty()) || currentKey != previousKey) {
                 currentKeyCount = 0;
                 std::string prefix = !processedKeys ? "\"" : "]\",\"";
                 std::string suffix = ":[";
