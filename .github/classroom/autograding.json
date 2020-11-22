@@ -481,16 +481,6 @@
       "points": null
     },
     {
-      "name": "IX_Test.scan_varchar_with_compact_size",
-      "setup": "",
-      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R IX_Test.scan_varchar_with_compact_size",
-      "input": "",
-      "output": "",
-      "comparison": "included",
-      "timeout": 10,
-      "points": null
-    },
-    {
       "name": "IX_Test.split_rotate_and_promote_on_insertion",
       "setup": "",
       "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R IX_Test.split_rotate_and_promote_on_insertion",
