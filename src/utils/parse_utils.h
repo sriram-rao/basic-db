@@ -40,7 +40,7 @@ namespace PeterDB {
         static string parseVarchar(void* data){
             int fieldLength;
             std::memcpy(&fieldLength, data, 4);
-            char field [fieldLength + 1]; 
+            char field [fieldLength + 1];
             std::memcpy(field, (char *)data + 4, fieldLength);
             field[fieldLength] = '\0';
             return string (field);

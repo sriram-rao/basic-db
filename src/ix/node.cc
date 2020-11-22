@@ -184,6 +184,7 @@ namespace PeterDB{
 
         while (left <= right) {
             int middleIndex = (left + right) / 2;
+            int initialMiddle = middleIndex;
             Slot middle = directory.at(middleIndex);
             while (middle.offset == -1 && middleIndex <= right) {
                 middleIndex++;
@@ -204,7 +205,7 @@ namespace PeterDB{
                 continue;
             }
             if (CompareUtils::checkGreaterThan(keyField.type, middleKey, key)) {
-                right = middleIndex - 1;
+                right = initialMiddle - 1;
                 continue;
             }
 
@@ -229,7 +230,7 @@ namespace PeterDB{
             if (keyPageNum < rid.pageNum || (keyPageNum == rid.pageNum && keySlotNum < rid.slotNum)) {
                 left = middleIndex + 1;
             } else if (keyPageNum > rid.pageNum || (keyPageNum == rid.pageNum && keySlotNum > rid.slotNum)) {
-                right = middleIndex - 1;
+                right = initialMiddle - 1;
             } else {
                 return middleIndex;
             }
