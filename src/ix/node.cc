@@ -92,8 +92,13 @@ namespace PeterDB{
         // Key is expected formatted with varchar length at the start
 
         // Find the correct sub-tree, return child page ID
-        if (directory.empty() || NODE_TYPE_LEAF == type)
+        if (NODE_TYPE_LEAF == type)
             return -1;
+
+        if (directory.empty()) {
+            index = 0;
+            return nextPage;
+        }
 
         char firstKey [directory.at(0).length + sizeof(int)]; // Why adding sizeof(int)?
         RID firstRid {};
@@ -169,19 +174,22 @@ namespace PeterDB{
             return -1;
 
         // Find the correct leaf entry
-        int left  = 0;
-        int right = directory.size() - 1;
+        int left  = 0; // initialise to first non-empty index
+        while (left < directory.size() && directory.at(left).offset == -1)
+            left++;
+
+        int right = directory.size() - 1; // initialise to last non-empty index
+        while (right >= 0 && directory.at(right).offset == -1)
+            right--;
 
         while (left <= right) {
             int middleIndex = (left + right) / 2;
+            int initialMiddle = middleIndex;
             Slot middle = directory.at(middleIndex);
-            while (middle.offset == -1) {
-                --middleIndex;
-                if (middleIndex < 0)
-                    break;
+            while (middle.offset == -1 && middleIndex <= right) {
+                middleIndex++;
                 middle = directory.at(middleIndex);
             }
-            if (middleIndex < 0) break;
 
             int middleKeyLength = middle.length - sizeof(RID::pageNum) - sizeof(RID::slotNum);
             char middleKey[middleKeyLength + sizeof(int)];
@@ -197,7 +205,7 @@ namespace PeterDB{
                 continue;
             }
             if (CompareUtils::checkGreaterThan(keyField.type, middleKey, key)) {
-                right = middleIndex - 1;
+                right = initialMiddle - 1;
                 continue;
             }
 
@@ -222,7 +230,7 @@ namespace PeterDB{
             if (keyPageNum < rid.pageNum || (keyPageNum == rid.pageNum && keySlotNum < rid.slotNum)) {
                 left = middleIndex + 1;
             } else if (keyPageNum > rid.pageNum || (keyPageNum == rid.pageNum && keySlotNum > rid.slotNum)) {
-                right = middleIndex - 1;
+                right = initialMiddle - 1;
             } else {
                 return middleIndex;
             }
@@ -316,6 +324,8 @@ namespace PeterDB{
             dataToKeep += directory.at(copyStartIndex).length + sizeof(Slot);
             copyStartIndex++;
         }
+        if (copyStartIndex == directory.size() - 1 && directory.size() > 3)
+            copyStartIndex--;
 
         Slot copyStart = directory.at(copyStartIndex);
         child->keyLength = copyStart.length;
@@ -327,20 +337,29 @@ namespace PeterDB{
             std::memcpy(&pageId, keys + copyStart.offset + copyStart.length - sizeof(pageId), sizeof(pageId));
             splitNode.nextPage = pageId;
             child->keyLength -= sizeof(pageId);
+
+            // We copied over the least child and left-most child page
+            // These don't go into split's keys and we can remove them from current node
+            int dataToMove = PAGE_SIZE - copyStart.offset - copyStart.length;
+            std::memmove(this->keys + copyStart.offset, this->keys + copyStart.offset + copyStart.length, dataToMove);
+
+            // Fixing offsets for all moved entries
+            for (auto & j : directory)
+                if (j.offset > copyStart.offset)
+                    j.offset -= copyStart.length;
+            this->freeSpace += copyStart.length + sizeof(Slot);
+            directory.erase(directory.begin() + copyStartIndex);
         }
 
         int copiedLength = 0, copyEndIndex = directory.size();
         for (int i = copyStartIndex; i < copyEndIndex; ++i) {
-            if (NODE_TYPE_INTERMEDIATE == type && i == copyStartIndex) {
-                directory.erase(directory.begin() + copyStartIndex);
-                continue;
-            }
+            // Move keys from current to split node
             Slot current = directory.at(copyStartIndex);
             std::memcpy(splitNode.keys + copiedLength, this->keys + current.offset, current.length);
             int dataToMove = PAGE_SIZE - current.offset - current.length;
             std::memmove(this->keys + current.offset, this->keys + current.offset + current.length, dataToMove);
 
-            // Fixing offsets for all moved entries
+            // Fixing offsets in current for all moved entries
             for (auto & j : directory)
                 if (j.offset > current.offset)
                     j.offset -= current.length;
@@ -354,29 +373,97 @@ namespace PeterDB{
         splitNode.populateBytes(newNode);
     }
 
-    std::string Node::toJsonString(const Attribute &keyField) {
-        std::string json = "{ \"keys\": [";
+    std::string Node::toJsonKeys(const Attribute &keyField) {
+        return NODE_TYPE_INTERMEDIATE == type
+            ? toJsonKeysIntermediate(keyField)
+            : toJsonKeysLeaf(keyField);
+    }
 
-        for(int i = 0; i < directory.size(); i++) {
+    std::string Node::toJsonKeysLeaf(const Attribute &keyField) {
+        string keysJson = "\"keys\": [";
+        std::string previousKey;
+        bool processedKeys = false;
+        int currentKeyCount = 0;
+
+        for(int i = 0; i < directory.size(); ++i) {
             Slot current = directory.at(i);
             if (-1 == current.offset)
                 continue;
 
             int keySize = getKeySize(i, keyField);
-            char key [keySize];
+            char *key = (char *) malloc(keySize);
             std::memcpy(key, keys + current.offset, keySize);
-            json.append("\"" + ParseUtils::parse(keyField.type, key) + ":[");
-            unsigned pageNum; unsigned short slotNum;
+
+            std::string currentKey = ParseUtils::parse(keyField.type, key, keySize);
+            free(key);
+            if ((!processedKeys && currentKey.empty()) || currentKey != previousKey) {
+                currentKeyCount = 0;
+                std::string prefix = !processedKeys ? "\"" : "]\",\"";
+                std::string suffix = ":[";
+                keysJson.append(prefix.append(currentKey + suffix));
+                processedKeys = true;
+            }
+
+            unsigned pageNum;
+            unsigned short slotNum;
             std::memcpy(&pageNum, keys + current.offset + keySize, sizeof(pageNum));
             std::memcpy(&slotNum, keys + current.offset + keySize + sizeof(pageNum), sizeof(slotNum));
-            json.append("(" + to_string(pageNum) + "," + to_string(slotNum) + ")");
-            json.append("]\"");
 
-            if (i < directory.size() - 1)
-                json.append(", ");
+            std::string comma = currentKeyCount > 0 ? "," : "";
+            keysJson.append(comma + "(" + to_string(pageNum) + "," + to_string(slotNum) + ")");
+            ++currentKeyCount;
+
+            if (previousKey != currentKey)
+                previousKey = currentKey;
         }
-        json.append("]}");
-        return json;
+        if (processedKeys)
+            keysJson.append("]\""); // closing last key's RID list
+        keysJson.append("]"); // closing keys array
+        return keysJson;
+    }
+
+    std::string Node::toJsonKeysIntermediate(const Attribute &keyField) {
+        string keysJson = "\"keys\":[";
+        bool first = true;
+
+        for(int i = 0; i < directory.size(); ++i) {
+            if (-1 == directory.at(i).offset)
+                continue;
+
+            Slot current = directory.at(i);
+            int keySize = getKeySize(i, keyField);
+            char *key = (char *) malloc(keySize);
+            std::memcpy(key, keys + current.offset, keySize);
+            std::string currentKey = ParseUtils::parse(keyField.type, key, keySize);
+            free(key);
+            std::string prefix = first ? "\"" : "\",\"";
+            keysJson.append(prefix + currentKey);
+            first = false;
+        }
+        if (!first)
+            keysJson.append("\""); // closing last key quote
+        keysJson.append("]"); // closing the keys array
+        return keysJson;
+    }
+
+    std::vector<int> Node::getChildren(const Attribute &keyField) {
+        std::vector<int> childPages;
+        if (NODE_TYPE_LEAF == type)
+            return childPages;
+
+        if (-1 != nextPage)
+            childPages.push_back(nextPage);
+
+        for (auto & slot : directory) {
+            if (-1 == slot.offset)
+                continue;
+
+            int pageId = -1;
+            std::memcpy(&pageId, keys + slot.offset + slot.length - sizeof(pageId), sizeof(pageId));
+            childPages.push_back(pageId);
+        }
+
+        return childPages;
     }
 
     int Node::getKeySize(int index, const Attribute &keyField) const {
@@ -384,7 +471,10 @@ namespace PeterDB{
             return 4;
 
         Slot keySlot = directory.at(index);
-        return keySlot.length - static_cast<int>(sizeof(unsigned)) - static_cast<int>(sizeof(unsigned short ));
+        int keySize = keySlot.length - static_cast<int>(sizeof(unsigned)) - static_cast<int>(sizeof(unsigned short));
+        if (NODE_TYPE_INTERMEDIATE == type)
+            keySize -= sizeof(int);
+        return keySize;
     }
 
     int Node::getKeyCount() const {
