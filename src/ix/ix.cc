@@ -74,27 +74,37 @@ namespace PeterDB {
             char *newNode = (char *) malloc(PAGE_SIZE);
             InsertionChild splitNode{};
             splitNode.leastChildValue = malloc(attribute.length + sizeof(RID::pageNum) + sizeof(RID::slotNum) + sizeof(int));
-            currentNode.split(newNode, &splitNode);
 
-            char formattedSplitKey [splitNode.keyLength];
-            RID splitId{};
-            parseKey(attribute.type, &splitNode, formattedSplitKey, splitId);
+            int splitStart;
+            currentNode.split(newNode, &splitNode, splitStart, childIndex);
 
-            char formattedKey [newChild->keyLength];
-            RID keyId{};
-            parseKey(attribute.type, newChild, formattedKey, keyId);
+//            char formattedSplitKey [splitNode.keyLength];
+//            RID splitId{};
+//            parseKey(attribute.type, &splitNode, formattedSplitKey, splitId);
+//
+//            char formattedKey [newChild->keyLength];
+//            RID keyId{};
+//            parseKey(attribute.type, newChild, formattedKey, keyId);
 
-            if (CompareUtils::checkLessThan(attribute.type, formattedKey, formattedSplitKey)) {
+            if (childIndex < splitStart) {
                 // add in old node
-                int childLocation;
-                currentNode.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
-                currentNode.insertChild(attribute, childLocation, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+//                int childLocation;
+//                currentNode.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
+                currentNode.insertChild(attribute, childIndex, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
             } else {
                 // add in split node
                 Node split (newNode);
-                int childLocation;
-                split.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
-                split.insertChild(attribute, childLocation, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
+                if (childIndex == splitStart) {
+                    split.insertChild(attribute, 0, splitNode.leastChildValue, splitNode.keyLength, split.nextPage);
+                    split.nextPage = newChild->childNodePage;
+                    free(splitNode.leastChildValue);
+                    splitNode.leastChildValue = malloc(newChild->keyLength);
+                    std::memcpy(splitNode.leastChildValue, newChild->leastChildValue, newChild->keyLength);
+                    splitNode.keyLength = newChild->keyLength;
+                } else {
+                    split.insertChild(attribute, childIndex - splitStart - 1, newChild->leastChildValue,
+                                      newChild->keyLength, newChild->childNodePage);
+                }
                 split.populateBytes(newNode);
             }
 
@@ -144,8 +154,9 @@ namespace PeterDB {
         }
 
         // Split leaf node, set up newChild
+        int splitStart;
         char *newLeaf = (char *) malloc(PAGE_SIZE);
-        currentNode.split(newLeaf, newChild);
+        currentNode.split(newLeaf, newChild, splitStart, 0);
 
         char formattedChildKey [newChild->keyLength];
         RID childKeyId{};
