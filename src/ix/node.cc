@@ -324,8 +324,8 @@ namespace PeterDB{
             dataToKeep += directory.at(copyStartIndex).length + sizeof(Slot);
             copyStartIndex++;
         }
-        if (copyStartIndex == directory.size() - 1 && copyStartIndex > 1)
-            copyStartIndex--;
+//        if (copyStartIndex == directory.size() - 1 && copyStartIndex > 1)
+//            copyStartIndex--;
 
         Slot copyStart = directory.at(copyStartIndex);
         child->keyLength = copyStart.length;
