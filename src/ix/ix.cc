@@ -78,18 +78,8 @@ namespace PeterDB {
             int splitStart;
             currentNode.split(newNode, &splitNode, splitStart, childIndex);
 
-//            char formattedSplitKey [splitNode.keyLength];
-//            RID splitId{};
-//            parseKey(attribute.type, &splitNode, formattedSplitKey, splitId);
-//
-//            char formattedKey [newChild->keyLength];
-//            RID keyId{};
-//            parseKey(attribute.type, newChild, formattedKey, keyId);
-
             if (childIndex < splitStart) {
                 // add in old node
-//                int childLocation;
-//                currentNode.findChildNode(attribute, formattedKey, keyId.pageNum, keyId.slotNum, childLocation);
                 currentNode.insertChild(attribute, childIndex, newChild->leastChildValue, newChild->keyLength, newChild->childNodePage);
             } else {
                 // add in split node
