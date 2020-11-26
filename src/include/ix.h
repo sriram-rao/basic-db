@@ -47,7 +47,7 @@ namespace PeterDB {
         void getKeyData(const Attribute &attribute, int index, char *key, RID &rid); // returns false if slotnum was absent
         int getKeyCount() const;
         void insertChild(const Attribute &attribute, int index, void *key, int keyLength, int childPageId);
-        void split(char *newNode,  InsertionChild *child);
+        void split(char *newNode,  InsertionChild *child, int &splitStart, int childIndex);
         bool hasSpace(int dataSpace) const;
         void populateBytes(char *bytes);
         bool validateIndex(int index);
