@@ -49,10 +49,10 @@
   Both the nodes have very similar design, which is also similar to the design in P1. 
   We have a page directory to store
   1. Node type (internal or leaf) 
-  1. Free space remaining, 
-  2. Directory size, 
-  3. A vector with record offsets and lengths: slot directory
-  4. Next node page ID
+  2. Free space remaining, 
+  3. Next node page ID
+  4. Directory size, 
+  5. A vector with record offsets and lengths: slot directory
   
   An additional part here is the left-most child (stored in the next node page ID) as explained earlier.
 
@@ -68,9 +68,14 @@ The "next page" is used according to need by the internal node and the leaf node
 
 - Show your leaf-page (leaf node) design.
 
-  We have a page directory to store free space remaining, directory size, and a vector with record offsets and lengths.
-An additional part here is the next leaf page in the B+ tree.
-The record entry here contains: 
+    We have a page directory to store
+    1. Node type (internal or leaf) 
+    2. Free space remaining, 
+    3. Next leaf page ID
+    4. Directory size, 
+    5. A vector with record offsets and lengths: slot directory
+    
+    The record entry here contains: 
     1. The attribute value which is the actual key in the index 
     2. The record ID in the heap file 
 
@@ -91,11 +96,11 @@ The record entry here contains:
      3. Update offsets in the current node.
      3. Erase this entry in the current node's directory.
   
-  *Reason for v.c:* While inserting records, I only ensure that the directory index is according to the B+ tree ordering but the record itself is added at the start of available free space.
+  *Reason for step **v.c**:* While inserting records, I only ensure that the directory index is according to the B+ tree ordering but the record itself is added at the start of available free space.
   Therefore, I need to check and correct all offsets while moving/editing a record in the index node. 
   This makes the node split an expensive operation. The assumption is that node-split is rare after building the index. 
   This is reasonable in many database systems: the insert operations are expected to be expensive.
-  But, this method could make the performance in an OLTP system slow   
+  But this method could make the performance in an OLTP system (with regular inserts/updates) slow.   
 
 - Rotation (if applicable): Node split logic does not involve rotation. Not applicable.
 
@@ -157,4 +162,4 @@ The record entry here contains:
 - Feedback on the project to help improve the project. (optional)
 
   I felt that some of the test cases were a little pedantic (e.g. expecting two append operations on first insert into the tree).
-Maybe these could be relaxed a little, since they do not make much of a difference to the actual formation of the B+ tree and its effectiveness.
+Maybe such instances could be relaxed a little, since they do not make much of a difference to the actual formation of the B+ tree and its effectiveness.
