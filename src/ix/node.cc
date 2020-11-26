@@ -313,7 +313,7 @@ namespace PeterDB{
         }
     }
 
-    void Node::split(char *newNode, InsertionChild *child) {
+    void Node::split(char *newNode, InsertionChild *child, int &splitStart, int childIndex) {
         cleanDirectory();
 
         Node splitNode(type);
@@ -324,8 +324,10 @@ namespace PeterDB{
             dataToKeep += directory.at(copyStartIndex).length + sizeof(Slot);
             copyStartIndex++;
         }
-        if (copyStartIndex == directory.size() - 1 && directory.size() > 3)
+        copyStartIndex--;
+        if (NODE_TYPE_INTERMEDIATE == type && childIndex < copyStartIndex)
             copyStartIndex--;
+        splitStart = copyStartIndex;
 
         Slot copyStart = directory.at(copyStartIndex);
         child->keyLength = copyStart.length;
