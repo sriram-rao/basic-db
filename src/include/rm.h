@@ -10,6 +10,7 @@ namespace PeterDB {
 #define RM_EOF (-1)  // end of a scan operator
 #define TABLE_FILE_NAME "Tables"
 #define COLUMN_FILE_NAME "Columns"
+#define INDEX_FILE_NAME "Indexes"
 
     // RM_ScanIterator is an iterator to go through tuples
     class RM_ScanIterator {
@@ -118,10 +119,12 @@ namespace PeterDB {
     private:
         static std::vector<Attribute> getTablesDescriptor();
         static std::vector<Attribute> getColumnsDescriptor();
+        static std::vector<Attribute> getIndexesDescriptor();
         static void getStaticTableRecord(int id, const string& name, const string& fileName, char* data);
         static void getTableRecord(int id, const string& name, const string& fileName, int tableType, char* data);
         static void getStaticColumnRecord(int id, const Attribute &attribute, int position, char* data);
         static void getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag, char* data);
+        static void getIndexRecord(int tableId, const string &columnName, const string &filename, char *data);
         static vector<string> getAttributeSchema();
         static Attribute parseColumnAttribute(char* data);
         static void copyData(void* data, void* newData, int& copiedLength, int newLength);
@@ -134,6 +137,14 @@ namespace PeterDB {
         static const int SYSTEM_TABLE_TYPE = 1;
         static const int COLUMN_RECORD_MAX_SIZE = 70;
         static const int SYSTEM_COLUMN_TYPE = 1;
+        static const int INDEX_RECORD_MAX_SIZE = 112;
+
+        vector<string> getIndexFiles(const string &tableName, vector<RID> &indexRids, int tableId = -1);
+        string getIndexFileName(const string &tableName, const string &columnName);
+
+        void removeFromIndex(const string &tableName, const RID &rid);
+
+        void addToIndex(const string &tableName, const RID &rid, const void *data);
     };
 
 } // namespace PeterDB
