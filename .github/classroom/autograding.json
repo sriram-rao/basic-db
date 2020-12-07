@@ -669,6 +669,156 @@
       "comparison": "included",
       "timeout": 1,
       "points": null
+    },
+    {
+      "name": "QE_Test.create_and_delete_table_with_index",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.create_and_delete_table_with_index",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.table_scan_with_int_filter",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.table_scan_with_int_filter",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.table_scan_with_varchar_filter",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.table_scan_with_varchar_filter",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.index_scan_with_real_filter",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.index_scan_with_real_filter",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.table_scan_with_project",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.table_scan_with_project",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.bnljoin",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.bnljoin",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.bnljoin_with_filter",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.bnljoin_with_filter",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.inljoin",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.inljoin",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.inljoin_with_filter_and_project",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.inljoin_with_filter_and_project",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.table_scan_with_max_aggregation",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.table_scan_with_max_aggregation",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.index_scan_with_avg_aggregation",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.index_scan_with_avg_aggregation",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.ghjoin_on_int",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.ghjoin_on_int",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.ghjoin_on_real",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.ghjoin_on_real",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.table_scan_with_group_min_aggregation",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.table_scan_with_group_min_aggregation",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
+    },
+    {
+      "name": "QE_Test.table_scan_with_group_sum_aggregation",
+      "setup": "",
+      "run": "cd cmake-build-debug && CTEST_OUTPUT_ON_FAILURE=1 ctest . -R QE_Test.table_scan_with_group_sum_aggregation",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 1,
+      "points": null
     }
   ]
 }
