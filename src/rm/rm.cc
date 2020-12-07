@@ -36,6 +36,8 @@ namespace PeterDB {
         recordManager.insertRecord(handle, tableDescriptor, data, rid);
         getStaticTableRecord(2, "Columns", COLUMN_FILE_NAME, data);
         recordManager.insertRecord(handle, tableDescriptor, data, rid);
+        getStaticTableRecord(3, "Indexes", INDEX_FILE_NAME, data);
+        recordManager.insertRecord(handle, tableDescriptor, data, rid);
         recordManager.closeFile(handle);
         handle = FileHandle();
 
@@ -54,6 +56,12 @@ namespace PeterDB {
             getStaticColumnRecord(2, attribute, position, data);
             recordManager.insertRecord(handle, columnsDescriptor, data, rid);
             position++;
+        }
+
+        position = 1;
+        for (auto & attribute : getIndexesDescriptor()) {
+            getStaticColumnRecord(3, attribute, position, data);
+            recordManager.insertRecord(handle, columnsDescriptor, data, rid);
         }
         free(data);
         return recordManager.closeFile(handle);
