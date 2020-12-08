@@ -22,8 +22,8 @@
 
  - Entries on internal nodes: 
     The records on internal nodes can be thought of as having a key and next page pointer in each record.
-    1. \[Key: (attribute value, page number, slot number)\]
-    2. \[Next child page number\]
+    1. Key: (attribute value, page number, slot number)
+    2. Next child page number
     These are arranged as follows. 
     If we have two records R1 and R2, the tree's key constraint can be written as:
       ```
@@ -82,13 +82,27 @@ The "next page" is used according to need by the internal node and the leaf node
 ### 5. Describe the following operation logic.
 - Split
   
-  Node split logic is according to the algorithm explained by the textbook:
+  The insertion algorithm is almost exactly as described in the textbook. 
+  Therefore, I will not go into the details of the insertion algorithm here.
+  A leaf node is split when it does not have enough space for a new key entry. This can be checked using the key's size and the available free space in the leaf node.
+  When a leaf node is split, the insertion child pointer is set with 
+     1. The minimum key value of the new node is **copied** (copy up).
+     2. Its key length
+     3. The page ID of the new leaf node after it is written to disk.
+
+  When control flow returns to an internal node, if a new node is present, it is added similarly. 
+  If there is no space available, the node is split and the insertion child pointer is set with:
+     1. The minimum key value in the new node is **pushed** (push up). This key is not present in the new internal node.
+     2. The key length.
+     3. The page ID of the new internal node after writing to disk.
+  
+  The node split logic specifically, according to this algorithm, is implemented in ```node.cc``` as follows:
   1. Iterate through the directory from start to find the index that pushes the occupied space to more than half of the page.
   2. Set the start of copy to the record that causes the occupied space to cross half.
   3. If the new key was to be added in the left half of the node, set the start of copy to the previous record.
   4. If this is an internal node, 
-     1. set the key of the start of copy record as minimum key value.
-     2. also set this child page as the left-most page of the new node.
+     1. Set the key of the start of copy record as minimum key value.
+     2. Also set this child page as the left-most page of the new node.
      3. Erase this record from the current node.
   5. For each directory entry from the start of copy to last directory entry,
      1. Copy the record (key, record ID, the child page number) using offset and length information stored in the directory.
@@ -124,7 +138,7 @@ The "next page" is used according to need by the internal node and the leaf node
     (page1 < page2 OR 
     (page1 == page2 AND slot1 < slot2)))
   ``` 
-  
+  This simple extension helps allow duplicate keys to span multiple leaf nodes.
 
 ### 6. Implementation Detail
 - Have you added your own module or source file (.cc or .h)? 
