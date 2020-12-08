@@ -353,9 +353,46 @@ namespace PeterDB {
         recordManager.openFile(INDEX_FILE_NAME, rbfmHandle);
         int insertSuccess = recordManager.insertRecord(rbfmHandle, getIndexesDescriptor(), data, rid);
         recordManager.closeFile(rbfmHandle);
+        rbfmHandle = FileHandle();
 
         IndexManager &ixManager = IndexManager::instance();
         ixManager.createFile(filename);
+        IXFileHandle ixHandle;
+        ixManager.openFile(filename, ixHandle);
+
+        // Scan records and insert
+        RBFM_ScanIterator rbfmScanner;
+        Attribute attribute;
+        std::vector<Attribute> tuplesDescriptor;
+        getAttributes(tableName, tuplesDescriptor);
+        int dataSize = 1;
+        for (Attribute & attr : tuplesDescriptor) {
+            if (attributeName != attr.name) {
+                continue;
+            }
+            attribute = attr;
+            dataSize += attr.length;
+            if (TypeVarChar == attr.type) {
+                dataSize += sizeof(int);
+            }
+            break;
+        }
+        recordManager.openFile(tableName, rbfmHandle);
+        recordManager.scan(rbfmHandle, tuplesDescriptor, "", EQ_OP, nullptr,
+                           std::vector<std::string>(1, attributeName), rbfmScanner);
+        char recordData [dataSize];
+        while(rbfmScanner.getNextRecord(rid, recordData) != RBFM_EOF) {
+            if (((char *)recordData)[0] & (1 << 7))
+                continue; // ignore null records
+            char indexData [dataSize - 1];
+            std::memcpy(indexData, recordData + 1, dataSize - 1);
+            ixManager.insertEntry(ixHandle, attribute, indexData, rid);
+        }
+
+        rbfmScanner.close();
+        ixManager.closeFile(ixHandle);
+        recordManager.closeFile(rbfmHandle);
+
         return insertSuccess;
     }
 
@@ -387,7 +424,14 @@ namespace PeterDB {
                  bool lowKeyInclusive,
                  bool highKeyInclusive,
                  RM_IndexScanIterator &rm_IndexScanIterator) {
-        return -1;
+        IndexManager &ixManager = IndexManager::instance();
+        string ixFile = getIndexFileName(tableName, attributeName);
+        Attribute attribute = getAttribute(tableName, attributeName);
+        if (attribute.name.empty())
+            return -1;
+        ixManager.openFile(ixFile, rm_IndexScanIterator.ixHandle);
+        return ixManager.scan(rm_IndexScanIterator.ixHandle, attribute, lowKey, highKey,
+                                                        lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ixScanner);
     }
 
     // Extra credit work
@@ -559,8 +603,9 @@ namespace PeterDB {
         while(rbfmScanner.getNextRecord(rid, indexData) != RBFM_EOF) {
             indexRids.push_back(rid);
             std::memcpy(&filenameLength, indexData + 1, sizeof(filenameLength));
-            char filenameBytes [filenameLength];
+            char filenameBytes [filenameLength + 1];
             std::memcpy(filenameBytes, indexData + 1 + sizeof(filenameLength), filenameLength);
+            filenameBytes[filenameLength] = '\0';
             filename = string (filenameBytes);
             filenames.push_back(filename);
         }
@@ -683,6 +728,15 @@ namespace PeterDB {
 
     std::string RelationManager::getIndexFileName(const string &tableName, const string &columnName) {
         return tableName + "_" + columnName + ".idx";
+    }
+
+    Attribute RelationManager::getAttribute(const string &tableName, const string &columnName) {
+        std::vector<Attribute> columns;
+        getAttributes(tableName, columns);
+        for (Attribute column : columns)
+            if (columnName == column.name)
+                return column;
+        return PeterDB::Attribute();
     }
 
 } // namespace PeterDB

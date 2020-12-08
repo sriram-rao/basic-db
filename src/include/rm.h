@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "src/include/rbfm.h"
+#include "ix.h"
 
 namespace PeterDB {
 #define RM_EOF (-1)  // end of a scan operator
@@ -48,6 +49,9 @@ namespace PeterDB {
         // "key" follows the same format as in IndexManager::insertEntry()
         RC getNextEntry(RID &rid, void *key);    // Get next matching entry
         RC close();                              // Terminate index scan
+
+        IX_ScanIterator ixScanner;
+        IXFileHandle ixHandle;
     };
 
     // Relation Manager
@@ -145,6 +149,8 @@ namespace PeterDB {
         void removeFromIndex(const string &tableName, const RID &rid);
 
         void addToIndex(const string &tableName, const RID &rid, const void *data);
+
+        Attribute getAttribute(const string &tableName, const string &columnName);
     };
 
 } // namespace PeterDB

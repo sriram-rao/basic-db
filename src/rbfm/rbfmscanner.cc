@@ -40,7 +40,7 @@ namespace PeterDB {
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
         Page page;
         page.directory.recordCount = 0;
-        if (RecordBasedFileManager::readPage(pageNum, page, fileHandle) == -1)
+        if (fileHandle.getNumberOfPages() < 1 || RecordBasedFileManager::readPage(pageNum, page, fileHandle) == -1)
             return RBFM_EOF;
         if (!incrementRid(page.directory.recordCount))
             return RBFM_EOF;
@@ -111,7 +111,7 @@ namespace PeterDB {
             slotNum++;
             return true;
         }
-        if (fileHandle.getNumberOfPages() > pageNum + 2) {
+        if (fileHandle.getNumberOfPages() >= pageNum + 2) {
             // If all records of page are done, increment page and go to slot 0
             pageNum++;
             slotNum = 0;
