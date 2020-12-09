@@ -220,6 +220,34 @@ namespace PeterDB {
 
         // For attribute in std::vector<Attribute>, name it as rel.attr
         RC getAttributes(std::vector<Attribute> &attrs) const override;
+
+        Iterator *leftIn;
+        TableScan *rightIn;
+        Condition condition;
+        unsigned int numPages;
+        std::vector<Attribute> leftAttrs;
+        std::vector<Attribute> rightAttrs;
+
+        std::unordered_map<long, std::vector<char *>> leftTuples;
+        char *nextLeftTuple;
+        char *nextRightTuple;
+        long rightTupleJoinKey;
+        int rightTupleLength;
+        int tupleLimit;
+        bool toReadLeft;
+        bool toReadRight;
+
+        Attribute leftJoinAttribute;
+        Attribute rightJoinAttribute;
+
+        static long hash (char *s);
+        void populateLeftTuplesMap();
+
+        bool leftTableComplete;
+
+        long getHash(int &seenLength, const std::vector<Attribute> &attrs, const Attribute &joinAttr, char *tupleData);
+
+        int mapIndexRead;
     };
 
     class INLJoin : public Iterator {
@@ -236,6 +264,10 @@ namespace PeterDB {
 
         // For attribute in std::vector<Attribute>, name it as rel.attr
         RC getAttributes(std::vector<Attribute> &attrs) const override;
+
+        Iterator *leftIn;
+        IndexScan *rightIn;
+        Condition condition;
     };
 
     // 10 extra-credit points

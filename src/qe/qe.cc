@@ -145,54 +145,6 @@ namespace PeterDB {
         return 0;
     }
 
-    BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned int numPages) {
-
-    }
-
-    BNLJoin::~BNLJoin() {
-
-    }
-
-    RC BNLJoin::getNextTuple(void *data) {
-        return -1;
-    }
-
-    RC BNLJoin::getAttributes(std::vector<Attribute> &attrs) const {
-        return -1;
-    }
-
-    INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn, const Condition &condition) {
-
-    }
-
-    INLJoin::~INLJoin() {
-
-    }
-
-    RC INLJoin::getNextTuple(void *data) {
-        return -1;
-    }
-
-    RC INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
-        return -1;
-    }
-
-    GHJoin::GHJoin(Iterator *leftIn, Iterator *rightIn, const Condition &condition, const unsigned int numPartitions) {
-
-    }
-
-    GHJoin::~GHJoin() {
-
-    }
-
-    RC GHJoin::getNextTuple(void *data) {
-        return -1;
-    }
-
-    RC GHJoin::getAttributes(std::vector<Attribute> &attrs) const {
-        return -1;
-    }
-
     Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, AggregateOp op) {
         this->input = input;
         this->aggAttr = aggAttr;
