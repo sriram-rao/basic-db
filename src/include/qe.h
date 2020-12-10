@@ -268,6 +268,20 @@ namespace PeterDB {
         Iterator *leftIn;
         IndexScan *rightIn;
         Condition condition;
+        bool toReadLeft;
+        bool toScanRight;
+        vector<Attribute> leftAttrs;
+        vector<Attribute> rightAttrs;
+        Attribute leftJoinAttribute;
+        char *nextLeftTuple;
+        char *leftJoinKey;
+        int leftKeyLength;
+        int rightRecordMaxLength;
+        Attribute rightJoinAttribute;
+
+        RC getLeftTuple();
+
+        int getDataLength(char *tuple, int nullBytes);
     };
 
     // 10 extra-credit points

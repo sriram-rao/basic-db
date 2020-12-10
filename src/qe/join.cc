@@ -120,7 +120,8 @@ namespace PeterDB {
 
         std::memcpy(data, joinedBitMap, joinedNullBytes);
         std::memcpy((char *) data + joinedNullBytes, leftTuple + leftNullBytes, leftDataSize);
-        std::memcpy((char *) data + joinedNullBytes + leftDataSize, this->nextRightTuple + rightNullBytes, this->rightTupleLength); // TODO: minus rightNullBytes
+        std::memcpy((char *) data + joinedNullBytes + leftDataSize, this->nextRightTuple + rightNullBytes,
+                    this->rightTupleLength - rightNullBytes);
 
         return 0;
     }
@@ -164,12 +165,120 @@ namespace PeterDB {
         this->leftIn = leftIn;
         this->rightIn = rightIn;
         this->condition = condition;
+        this->toReadLeft = true;
+        this->toScanRight = true;
+        leftIn->getAttributes(this->leftAttrs);
+        rightIn->getAttributes(this->rightAttrs);
+
+        int maxRecordSize = ceil((float) leftAttrs.size() / 8);
+        for(const Attribute &leftAttr : leftAttrs) {
+            maxRecordSize += leftAttr.length;
+            if (TypeVarChar == leftAttr.type)
+                maxRecordSize += sizeof(int);
+            if (condition.lhsAttr == leftAttr.name)
+                this->leftJoinAttribute = leftAttr;
+        }
+        this->nextLeftTuple = (char *) malloc(maxRecordSize);
+        this->leftJoinKey = (char *) malloc(this->leftJoinAttribute.length + sizeof(int));
+
+        int rightNullBytes = ceil((float) this->rightAttrs.size() / 8);
+        this->rightRecordMaxLength = rightNullBytes;
+        for (const Attribute &rightAttr : this->rightAttrs){
+            this->rightRecordMaxLength += rightAttr.length;
+            if (rightAttr.type == TypeVarChar)
+                this->rightRecordMaxLength += sizeof(int);
+            if (condition.bRhsIsAttr && condition.rhsAttr == rightAttr.name)
+                this->rightJoinAttribute = rightAttr;
+        }
     }
 
-    INLJoin::~INLJoin() = default;
+    INLJoin::~INLJoin() {
+        if (nullptr != this->nextLeftTuple)
+            free(this->nextLeftTuple);
+
+        if (nullptr != this->leftJoinKey)
+            free(this->leftJoinKey);
+    }
 
     RC INLJoin::getNextTuple(void *data) {
-        return -1;
+        // read tuple from left
+        if (this->toReadLeft)
+            if (QE_EOF == getLeftTuple())
+                return QE_EOF;
+
+        // initialise scan based on join attribute of left
+        if (this->toScanRight) {
+            char *indexScanKey = (char *) malloc(this->leftKeyLength);
+            this->rightIn->setIterator(indexScanKey, indexScanKey, true, true);
+            this->toScanRight = false;
+        }
+
+        // get right record
+        char rightTuple [this->rightRecordMaxLength];
+        int result = this->rightIn->getNextTuple(rightTuple);
+        if (QE_EOF == result) {
+            this->toReadLeft = true;
+            this->toScanRight = true;
+            return getNextTuple(data);
+        }
+
+        // join with nextLeftTuple
+        int leftNullBytes = ceil((float) this->leftAttrs.size() / 8);
+        int leftDataSize = this->getDataLength(this->nextLeftTuple, leftNullBytes);
+
+        int rightNullBytes = ceil((float) this->rightAttrs.size() / 8);
+        int rightDataSize = this->getDataLength(rightTuple, rightNullBytes);
+
+        int joinedNullBytes = ceil((float) (this->leftAttrs.size() + this->rightAttrs.size()) / 8);
+        int joinedNullCounter = 0;
+        char joinedBitMap [joinedNullBytes];
+        std::memset(joinedBitMap, 0, joinedNullBytes);
+
+        // compute null bytes
+        for (int i = 0; i < this->leftAttrs.size(); ++i) {
+            if (((char *) this->nextLeftTuple)[i / 8] & (1 << (7 - i % 8)))
+                joinedBitMap[joinedNullCounter / 8] = joinedBitMap[joinedNullCounter / 8] | (1 << (7 - joinedNullCounter % 8));
+            joinedNullCounter++;
+        }
+        for (int i = 0; i < this->rightAttrs.size(); ++i) {
+            if (((char *) rightTuple)[i / 8] & (1 << (7 - i % 8)))
+                joinedBitMap[joinedNullCounter / 8] = joinedBitMap[joinedNullCounter / 8] | (1 << (7 - joinedNullCounter % 8));
+            joinedNullCounter++;
+        }
+
+        std::memcpy(data, joinedBitMap, joinedNullBytes);
+        std::memcpy((char *) data + joinedNullBytes, this->nextLeftTuple + leftNullBytes, leftDataSize);
+        std::memcpy((char *) data + joinedNullBytes + leftDataSize, rightTuple + rightNullBytes, rightDataSize);
+        
+        return 0;
+    }
+
+    RC INLJoin::getLeftTuple() {
+        RC result = this->leftIn->getNextTuple(this->nextLeftTuple);
+        if (QE_EOF == result)
+            return QE_EOF;
+
+        int seenLength = ceil((float) this->leftAttrs.size() / 8);
+        // get join attribute of left tuple (and also it's exact length)
+        for (int i = 0; i < this->leftAttrs.size(); ++i) {
+            if (((char *) this->nextLeftTuple)[i / 8] & (1 << (7 - i % 8)))
+                continue;
+
+            Attribute attr = leftAttrs.at(i);
+            int fieldLength = attr.length;
+            if (TypeVarChar == attr.type) {
+                std::memcpy(&fieldLength, nextLeftTuple + seenLength, sizeof(fieldLength));
+                fieldLength += sizeof(int);
+            }
+
+            if (attr.name == condition.lhsAttr) {
+                std::memcpy(this->leftJoinKey, this->nextLeftTuple + seenLength, fieldLength);
+                this->leftKeyLength = fieldLength;
+            }
+            seenLength += fieldLength;
+        }
+        this->toReadLeft = false;
+        return result;
     }
 
     RC INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
@@ -240,5 +349,18 @@ namespace PeterDB {
             seenLength += attrLength;
         }
         return joinKeyHash;
+    }
+
+    int INLJoin::getDataLength(char *tuple, int nullBytes) {
+        int dataSize = 0;
+        for (const Attribute &attr : this->leftAttrs) {
+            if (TypeVarChar == attr.type) {
+                int length;
+                std::memcpy(&length, tuple + nullBytes + dataSize, sizeof(int));
+                dataSize += length;
+            }
+            dataSize += sizeof(int);
+        }
+        return dataSize;
     }
 }
