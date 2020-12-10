@@ -2,6 +2,7 @@
 #include "src/utils/copy_utils.h"
 #include <vector>
 #include <string>
+#include <src/include/ix.h>
 
 using namespace std;
 
@@ -23,6 +24,7 @@ namespace PeterDB {
         RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
         recordManager.createFile(TABLE_FILE_NAME);
         recordManager.createFile(COLUMN_FILE_NAME);
+        recordManager.createFile(INDEX_FILE_NAME);
 
         // Add tables and columns records into tables
         vector<Attribute> tableDescriptor = getTablesDescriptor();
@@ -33,6 +35,8 @@ namespace PeterDB {
         RID rid;
         recordManager.insertRecord(handle, tableDescriptor, data, rid);
         getStaticTableRecord(2, "Columns", COLUMN_FILE_NAME, data);
+        recordManager.insertRecord(handle, tableDescriptor, data, rid);
+        getStaticTableRecord(3, "Indexes", INDEX_FILE_NAME, data);
         recordManager.insertRecord(handle, tableDescriptor, data, rid);
         recordManager.closeFile(handle);
         handle = FileHandle();
@@ -53,6 +57,12 @@ namespace PeterDB {
             recordManager.insertRecord(handle, columnsDescriptor, data, rid);
             position++;
         }
+
+        position = 1;
+        for (auto & attribute : getIndexesDescriptor()) {
+            getStaticColumnRecord(3, attribute, position, data);
+            recordManager.insertRecord(handle, columnsDescriptor, data, rid);
+        }
         free(data);
         return recordManager.closeFile(handle);
     }
@@ -62,6 +72,7 @@ namespace PeterDB {
         RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
         recordManager.destroyFile(COLUMN_FILE_NAME);
         recordManager.destroyFile(TABLE_FILE_NAME);
+        recordManager.destroyFile(INDEX_FILE_NAME);
         return 0;
     }
 
@@ -133,6 +144,18 @@ namespace PeterDB {
             recordManager.deleteRecord(handle, columnsDescriptor, colRid);
         recordManager.closeFile(handle);
 
+        // Delete indexes
+        std::vector<Attribute> indexesDescriptor = getIndexesDescriptor();
+        handle = FileHandle();
+        std::vector<RID> indexRids;
+        std::vector<std::string> indexFiles = getIndexFiles(tableName, indexRids, tableId);
+        recordManager.openFile(INDEX_FILE_NAME, handle);
+        for (int i = 0; i < indexRids.size(); ++i) {
+            IndexManager::instance().destroyFile(indexFiles.at(i));
+            recordManager.deleteRecord(handle, indexesDescriptor, indexRids.at(i));
+        }
+        recordManager.closeFile(handle);
+
         free(columnTableId);
         free(tableFilter);
 
@@ -183,6 +206,8 @@ namespace PeterDB {
         recordManager.openFile(tableName, handle);
         int insertSuccess = recordManager.insertRecord(handle, tupleDescriptor, data, rid);
         recordManager.closeFile(handle);
+        addToIndex(tableName, rid, data);
+
         return insertSuccess;
     }
 
@@ -194,8 +219,11 @@ namespace PeterDB {
         FileHandle handle;
         RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
         recordManager.openFile(tableName, handle);
+
+        removeFromIndex(tableName, rid);
         int deleteSuccess = recordManager.deleteRecord(handle, vector<Attribute>(0), rid);
         recordManager.closeFile(handle);
+
         return deleteSuccess;
     }
 
@@ -207,8 +235,13 @@ namespace PeterDB {
         FileHandle handle;
         RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
         recordManager.openFile(tableName, handle);
+        removeFromIndex(tableName, rid);
+
         int updateSuccess = recordManager.updateRecord(handle, tupleDescriptor, data, rid);
         recordManager.closeFile(handle);
+
+        addToIndex(tableName, rid, data);
+
         return updateSuccess;
     }
 
@@ -302,6 +335,105 @@ namespace PeterDB {
         return 0;
     }
 
+    // QE IX related
+    RC RelationManager::createIndex(const std::string &tableName, const std::string &attributeName){
+        // Get table ID
+        RID tableRid;
+        int tableId = getTableId(tableName, tableRid);
+        if (tableId <= 2) // -1 or attempting to create index on system table
+            return -1;
+
+        // insert in index table
+        char* data = (char*) malloc(INDEX_RECORD_MAX_SIZE);
+        string filename = getIndexFileName(tableName, attributeName);
+        getIndexRecord(tableId, attributeName, filename, data);
+        RID rid;
+        FileHandle rbfmHandle;
+        RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
+        recordManager.openFile(INDEX_FILE_NAME, rbfmHandle);
+        int insertSuccess = recordManager.insertRecord(rbfmHandle, getIndexesDescriptor(), data, rid);
+        recordManager.closeFile(rbfmHandle);
+        rbfmHandle = FileHandle();
+
+        IndexManager &ixManager = IndexManager::instance();
+        ixManager.createFile(filename);
+        IXFileHandle ixHandle;
+        ixManager.openFile(filename, ixHandle);
+
+        // Scan records and insert
+        RBFM_ScanIterator rbfmScanner;
+        Attribute attribute;
+        std::vector<Attribute> tuplesDescriptor;
+        getAttributes(tableName, tuplesDescriptor);
+        int dataSize = 1;
+        for (Attribute & attr : tuplesDescriptor) {
+            if (attributeName != attr.name) {
+                continue;
+            }
+            attribute = attr;
+            dataSize += attr.length;
+            if (TypeVarChar == attr.type) {
+                dataSize += sizeof(int);
+            }
+            break;
+        }
+        recordManager.openFile(tableName, rbfmHandle);
+        recordManager.scan(rbfmHandle, tuplesDescriptor, "", EQ_OP, nullptr,
+                           std::vector<std::string>(1, attributeName), rbfmScanner);
+        char recordData [dataSize];
+        while(rbfmScanner.getNextRecord(rid, recordData) != RBFM_EOF) {
+            if (((char *)recordData)[0] & (1 << 7))
+                continue; // ignore null records
+            char indexData [dataSize - 1];
+            std::memcpy(indexData, recordData + 1, dataSize - 1);
+            ixManager.insertEntry(ixHandle, attribute, indexData, rid);
+        }
+
+        rbfmScanner.close();
+        ixManager.closeFile(ixHandle);
+        recordManager.closeFile(rbfmHandle);
+
+        return insertSuccess;
+    }
+
+    RC RelationManager::destroyIndex(const std::string &tableName, const std::string &attributeName) {
+        int result = -1;
+        std::vector<RID> indexRids;
+        string fileToDelete = getIndexFileName(tableName, attributeName);
+        std::vector<std::string> tableIndexes = getIndexFiles(tableName, indexRids);
+        for (int i = 0; i < tableIndexes.size(); ++i) {
+            string filename = tableIndexes.at(i);
+            if (fileToDelete != filename)
+                continue;
+            FileHandle handle;
+            RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
+            recordManager.openFile(INDEX_FILE_NAME, handle);
+            recordManager.deleteRecord(handle, getIndexesDescriptor(), indexRids.at(i));
+            recordManager.closeFile(handle);
+            result = IndexManager::instance().destroyFile(fileToDelete);
+            break;
+        }
+        return result;
+    }
+
+    // indexScan returns an iterator to allow the caller to go through qualified entries in index
+    RC RelationManager::indexScan(const std::string &tableName,
+                 const std::string &attributeName,
+                 const void *lowKey,
+                 const void *highKey,
+                 bool lowKeyInclusive,
+                 bool highKeyInclusive,
+                 RM_IndexScanIterator &rm_IndexScanIterator) {
+        IndexManager &ixManager = IndexManager::instance();
+        string ixFile = getIndexFileName(tableName, attributeName);
+        Attribute attribute = getAttribute(tableName, attributeName);
+        if (attribute.name.empty())
+            return -1;
+        ixManager.openFile(ixFile, rm_IndexScanIterator.ixHandle);
+        return ixManager.scan(rm_IndexScanIterator.ixHandle, attribute, lowKey, highKey,
+                                                        lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ixScanner);
+    }
+
     // Extra credit work
     RC RelationManager::dropAttribute(const std::string &tableName, const std::string &attributeName) {
         return -1;
@@ -328,6 +460,14 @@ namespace PeterDB {
         descriptor.push_back({ "column-type", TypeInt, 4 });
         descriptor.push_back({ "column-length", TypeInt, 4 });
         descriptor.push_back({ "column-position", TypeInt, 4 });
+        return descriptor;
+    }
+
+    vector<Attribute> RelationManager::getIndexesDescriptor() {
+        vector<Attribute> descriptor;
+        descriptor.push_back({ "table-id", TypeInt, 4 });
+        descriptor.push_back({ "column-name", TypeVarChar, 50 });
+        descriptor.push_back({ "file-name", TypeVarChar, 50 });
         return descriptor;
     }
 
@@ -398,6 +538,21 @@ namespace PeterDB {
         copyData(data, &position, copiedLength, sizeof(position));
     }
 
+    void RelationManager::getIndexRecord(int tableId, const string &columnName, const string &filename, char *data) {
+        int copiedLength = 0;
+        char nullMap = 0;
+        int columnNameLength = columnName.length();
+        int filenameLength = filename.length();
+        std::memset(&nullMap, 0, 1);
+
+        copyData(data, &nullMap, copiedLength, 1);
+        copyData(data, &tableId, copiedLength, sizeof(tableId));
+        copyData(data, &columnNameLength, copiedLength, sizeof(columnNameLength));
+        copyData(data, (char *)columnName.c_str(), copiedLength, columnNameLength);
+        copyData(data, &filenameLength, copiedLength, sizeof(filenameLength));
+        copyData(data, (char *)filename.c_str(), copiedLength, filenameLength);
+    }
+
     void RelationManager::copyData(void* data, void* newData, int& copiedLength, int newLength) {
         memcpy((char*)data + copiedLength, newData, newLength);
         copiedLength += newLength;
@@ -430,6 +585,37 @@ namespace PeterDB {
         return tableId;
     }
 
+    std::vector<std::string> RelationManager::getIndexFiles(const string &tableName, std::vector<RID> &indexRids, int tableId) {
+        std::vector<std::string> filenames;
+        FileHandle handle;
+        vector<Attribute> descriptor = getIndexesDescriptor();
+        RBFM_ScanIterator rbfmScanner;
+        RID tableRid;
+        int tableFilter = tableId > 2 ? tableId : getTableId(tableName, tableRid);
+        RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
+        recordManager.openFile(INDEX_FILE_NAME, handle);
+        recordManager.scan(handle, descriptor, "table-id", EQ_OP, &tableFilter,
+                           std::vector<std::string>(1, "file-name"), rbfmScanner);
+        char indexData [50 + sizeof(int)];
+        int filenameLength = -1;
+        string filename;
+        RID rid;
+        while(rbfmScanner.getNextRecord(rid, indexData) != RBFM_EOF) {
+            indexRids.push_back(rid);
+            std::memcpy(&filenameLength, indexData + 1, sizeof(filenameLength));
+            char filenameBytes [filenameLength + 1];
+            std::memcpy(filenameBytes, indexData + 1 + sizeof(filenameLength), filenameLength);
+            filenameBytes[filenameLength] = '\0';
+            filename = string (filenameBytes);
+            filenames.push_back(filename);
+        }
+
+        rbfmScanner.close();
+        recordManager.closeFile(handle);
+
+        return filenames;
+    }
+
     void RelationManager::makeTableIdFilter(int tableId, char* tableFilter) {
         memcpy(tableFilter, &tableId, sizeof(tableId));
     }
@@ -457,6 +643,100 @@ namespace PeterDB {
 
         free(tableId);
         return maxId;
+    }
+
+    void RelationManager::removeFromIndex(const std::string &tableName, const RID &rid) {
+        FileHandle handle;
+        RecordBasedFileManager &recordManager = RecordBasedFileManager::instance();
+        std::vector<Attribute> tupleDescriptor;
+        getAttributes(tableName, tupleDescriptor, false);
+        IndexManager &ixManager = IndexManager::instance();
+        vector<RID> indexRids;
+        std::vector<std::string> indexFiles = getIndexFiles(tableName, indexRids);
+        // Remove from index if present
+        for (int i = 0; i < tupleDescriptor.size(); ++i) {
+            Attribute attribute = tupleDescriptor.at(i);
+            string currentColumnIndex = getIndexFileName(tableName, attribute.name);
+
+            for (const std::string& index : indexFiles){
+                if (currentColumnIndex != index)
+                    continue;
+
+                int keyReadSize = 1 + attribute.length;
+                if (TypeVarChar == attribute.type) {
+                    keyReadSize += sizeof(int);
+                }
+                char columnValue [keyReadSize];
+                recordManager.readAttribute(handle, tupleDescriptor, rid, attribute.name, columnValue);
+                if ((columnValue)[0] & (1 << 7))
+                    continue;
+
+                // Get attribute value
+                char key [keyReadSize - 1];
+                std::memcpy(key, columnValue + 1, keyReadSize - 1);
+                IXFileHandle ixHandle;
+                ixManager.openFile(index, ixHandle);
+                ixManager.deleteEntry(ixHandle, attribute, key, rid);
+                ixManager.closeFile(ixHandle);
+            }
+        }
+    }
+
+    void RelationManager::addToIndex(const string &tableName, const RID &rid, const void *data) {
+        std::vector<Attribute> tupleDescriptor;
+        getAttributes(tableName, tupleDescriptor);
+
+        IndexManager &ixManager = IndexManager::instance();
+        vector<RID> indexRids;
+        std::vector<std::string> indexFiles = getIndexFiles(tableName, indexRids);
+        // Add in index if present
+        int seenLength = ceil(((float) tupleDescriptor.size()) / 8);
+        for (int i = 0; i < tupleDescriptor.size(); ++i) {
+            if (((char *) data)[i / 8] & (1 << (7 - i % 8))) {
+                continue;
+            }
+            Attribute attribute = tupleDescriptor.at(i);
+            string currentColumnIndex = getIndexFileName(tableName, attribute.name);
+
+            for (const std::string& index : indexFiles){
+                int fieldLength = attribute.length;
+                int keySize = fieldLength;
+                if (TypeVarChar == attribute.type) {
+                    std::memcpy(&fieldLength, (char *) data + seenLength, sizeof(int));
+                    keySize += sizeof(int);
+                    seenLength += sizeof(int);
+                }
+                if (currentColumnIndex != index) {
+                    seenLength += fieldLength;
+                    continue;
+                }
+                // Get attribute value
+                char key [keySize];
+                int copiedLength = 0;
+                if (TypeVarChar == attribute.type) {
+                    std::memcpy(key, &fieldLength, sizeof(fieldLength));
+                    copiedLength += sizeof(fieldLength);
+                }
+                IXFileHandle ixHandle;
+                std::memcpy(key + copiedLength, (char *)data + seenLength, fieldLength);
+                ixManager.openFile(index, ixHandle);
+                ixManager.insertEntry(ixHandle, attribute, key, rid);
+                ixManager.closeFile(ixHandle);
+            }
+        }
+    }
+
+    std::string RelationManager::getIndexFileName(const string &tableName, const string &columnName) {
+        return tableName + "_" + columnName + ".idx";
+    }
+
+    Attribute RelationManager::getAttribute(const string &tableName, const string &columnName) {
+        std::vector<Attribute> columns;
+        getAttributes(tableName, columns);
+        for (Attribute column : columns)
+            if (columnName == column.name)
+                return column;
+        return PeterDB::Attribute();
     }
 
 } // namespace PeterDB

@@ -5,11 +5,13 @@
 #include <vector>
 
 #include "src/include/rbfm.h"
+#include "ix.h"
 
 namespace PeterDB {
 #define RM_EOF (-1)  // end of a scan operator
 #define TABLE_FILE_NAME "Tables"
 #define COLUMN_FILE_NAME "Columns"
+#define INDEX_FILE_NAME "Indexes"
 
     // RM_ScanIterator is an iterator to go through tuples
     class RM_ScanIterator {
@@ -37,6 +39,20 @@ namespace PeterDB {
 
     typedef int (RecordBasedFileManager::*operateRecord)(FileHandle &handle, const vector<Attribute> &recordDescriptor,
             void *data, RID &rid);
+
+    // RM_IndexScanIterator is an iterator to go through index entries
+    class RM_IndexScanIterator {
+    public:
+        RM_IndexScanIterator();    // Constructor
+        ~RM_IndexScanIterator();    // Destructor
+
+        // "key" follows the same format as in IndexManager::insertEntry()
+        RC getNextEntry(RID &rid, void *key);    // Get next matching entry
+        RC close();                              // Terminate index scan
+
+        IX_ScanIterator ixScanner;
+        IXFileHandle ixHandle;
+    };
 
     // Relation Manager
     class RelationManager {
@@ -84,6 +100,20 @@ namespace PeterDB {
         RC dropAttribute(const std::string &tableName, const std::string &attributeName);
 
 
+        // QE IX related
+        RC createIndex(const std::string &tableName, const std::string &attributeName);
+
+        RC destroyIndex(const std::string &tableName, const std::string &attributeName);
+
+        // indexScan returns an iterator to allow the caller to go through qualified entries in index
+        RC indexScan(const std::string &tableName,
+                     const std::string &attributeName,
+                     const void *lowKey,
+                     const void *highKey,
+                     bool lowKeyInclusive,
+                     bool highKeyInclusive,
+                     RM_IndexScanIterator &rm_IndexScanIterator);
+
     protected:
         RelationManager();                                                  // Prevent construction
         ~RelationManager();                                                 // Prevent unwanted destruction
@@ -93,10 +123,12 @@ namespace PeterDB {
     private:
         static std::vector<Attribute> getTablesDescriptor();
         static std::vector<Attribute> getColumnsDescriptor();
+        static std::vector<Attribute> getIndexesDescriptor();
         static void getStaticTableRecord(int id, const string& name, const string& fileName, char* data);
         static void getTableRecord(int id, const string& name, const string& fileName, int tableType, char* data);
         static void getStaticColumnRecord(int id, const Attribute &attribute, int position, char* data);
         static void getColumnRecord(int id, const Attribute &attribute, int position, int columnFlag, char* data);
+        static void getIndexRecord(int tableId, const string &columnName, const string &filename, char *data);
         static vector<string> getAttributeSchema();
         static Attribute parseColumnAttribute(char* data);
         static void copyData(void* data, void* newData, int& copiedLength, int newLength);
@@ -109,6 +141,16 @@ namespace PeterDB {
         static const int SYSTEM_TABLE_TYPE = 1;
         static const int COLUMN_RECORD_MAX_SIZE = 70;
         static const int SYSTEM_COLUMN_TYPE = 1;
+        static const int INDEX_RECORD_MAX_SIZE = 112;
+
+        vector<string> getIndexFiles(const string &tableName, vector<RID> &indexRids, int tableId = -1);
+        string getIndexFileName(const string &tableName, const string &columnName);
+
+        void removeFromIndex(const string &tableName, const RID &rid);
+
+        void addToIndex(const string &tableName, const RID &rid, const void *data);
+
+        Attribute getAttribute(const string &tableName, const string &columnName);
     };
 
 } // namespace PeterDB

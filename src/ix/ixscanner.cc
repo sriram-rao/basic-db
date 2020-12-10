@@ -11,7 +11,7 @@ namespace PeterDB {
         if (pageNum == -1)
             return IX_EOF;
 
-        if (!ixManager.cached(pageNum))
+        if (!ixManager.cached(ixFileHandle->filename, pageNum))
             ixManager.refreshCache(*ixFileHandle, pageNum);
 
         // Go to the correct leaf
@@ -32,7 +32,7 @@ namespace PeterDB {
             incrementCursor(ixManager.cachedNode.getKeyCount(), ixManager.cachedNode.nextPage);
             if (pageNum == -1)
                 return IX_EOF;
-            if (ixManager.cached(pageNum))
+            if (ixManager.cached(ixFileHandle->filename, pageNum))
                 continue;
             ixManager.refreshCache(*ixFileHandle, pageNum);
         }

@@ -111,7 +111,7 @@ namespace PeterDB {
         void refreshCache(IXFileHandle &ixFileHandle, int pageId);
         void refreshCache(char *bytes, int pageId);
 
-        bool cached(int pageId) const;
+        bool cached(const string& filename, int pageId) const;
 
     protected:
         IndexManager() = default;                                                   // Prevent construction
@@ -121,6 +121,8 @@ namespace PeterDB {
 
     private:
         void parseKey(AttrType attrType, InsertionChild *child, char *key, RID &rid);
+
+        string cachedFile;
     };
 
     class IXFileHandle {
