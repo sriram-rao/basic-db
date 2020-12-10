@@ -203,12 +203,13 @@ namespace PeterDB {
     RC INLJoin::getNextTuple(void *data) {
         // read tuple from left
         if (this->toReadLeft)
-            if (QE_EOF == getLeftTuple())
+            if (QE_EOF == getLeftTuple()) 
                 return QE_EOF;
 
         // initialise scan based on join attribute of left
         if (this->toScanRight) {
             char *indexScanKey = (char *) malloc(this->leftKeyLength);
+            std::memcpy(indexScanKey, this->leftJoinKey, this->leftKeyLength);
             this->rightIn->setIterator(indexScanKey, indexScanKey, true, true);
             this->toScanRight = false;
         }
@@ -224,10 +225,10 @@ namespace PeterDB {
 
         // join with nextLeftTuple
         int leftNullBytes = ceil((float) this->leftAttrs.size() / 8);
-        int leftDataSize = this->getDataLength(this->nextLeftTuple, leftNullBytes);
+        int leftDataSize = this->getDataLength(this->nextLeftTuple, leftNullBytes, this->leftAttrs);
 
         int rightNullBytes = ceil((float) this->rightAttrs.size() / 8);
-        int rightDataSize = this->getDataLength(rightTuple, rightNullBytes);
+        int rightDataSize = this->getDataLength(rightTuple, rightNullBytes, this->rightAttrs);
 
         int joinedNullBytes = ceil((float) (this->leftAttrs.size() + this->rightAttrs.size()) / 8);
         int joinedNullCounter = 0;
@@ -249,7 +250,7 @@ namespace PeterDB {
         std::memcpy(data, joinedBitMap, joinedNullBytes);
         std::memcpy((char *) data + joinedNullBytes, this->nextLeftTuple + leftNullBytes, leftDataSize);
         std::memcpy((char *) data + joinedNullBytes + leftDataSize, rightTuple + rightNullBytes, rightDataSize);
-        
+
         return 0;
     }
 
@@ -261,10 +262,13 @@ namespace PeterDB {
         int seenLength = ceil((float) this->leftAttrs.size() / 8);
         // get join attribute of left tuple (and also it's exact length)
         for (int i = 0; i < this->leftAttrs.size(); ++i) {
-            if (((char *) this->nextLeftTuple)[i / 8] & (1 << (7 - i % 8)))
-                continue;
-
             Attribute attr = leftAttrs.at(i);
+            if (((char *) this->nextLeftTuple)[i / 8] & (1 << (7 - i % 8))) {
+                if (attr.name != condition.lhsAttr)
+                    continue;
+                return getLeftTuple();
+            }
+
             int fieldLength = attr.length;
             if (TypeVarChar == attr.type) {
                 std::memcpy(&fieldLength, nextLeftTuple + seenLength, sizeof(fieldLength));
@@ -351,9 +355,9 @@ namespace PeterDB {
         return joinKeyHash;
     }
 
-    int INLJoin::getDataLength(char *tuple, int nullBytes) {
+    int INLJoin::getDataLength(char *tuple, int nullBytes, const std::vector<Attribute> &attrs) {
         int dataSize = 0;
-        for (const Attribute &attr : this->leftAttrs) {
+        for (const Attribute &attr : attrs) {
             if (TypeVarChar == attr.type) {
                 int length;
                 std::memcpy(&length, tuple + nullBytes + dataSize, sizeof(int));

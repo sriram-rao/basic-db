@@ -281,7 +281,7 @@ namespace PeterDB {
 
         RC getLeftTuple();
 
-        int getDataLength(char *tuple, int nullBytes);
+        int getDataLength(char *tuple, int nullBytes, const std::vector<Attribute> &attrs);
     };
 
     // 10 extra-credit points

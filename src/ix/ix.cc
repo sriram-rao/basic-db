@@ -15,14 +15,18 @@ namespace PeterDB {
     }
 
     RC IndexManager::destroyFile(const std::string &fileName) {
+        this->cachedPage = -1;
         return remove(fileName.c_str());
     }
 
     RC IndexManager::openFile(const std::string &fileName, IXFileHandle &ixFileHandle) {
+        this->cachedFile = ixFileHandle.filename;
+        this->cachedPage = -1;
         return ixFileHandle.open(fileName);
     }
 
     RC IndexManager::closeFile(IXFileHandle &ixFileHandle) {
+        this->cachedPage = -1;
         return ixFileHandle.close();
     }
 
@@ -208,7 +212,7 @@ namespace PeterDB {
         currentNode.populateBytes(bytes);
         ixFileHandle.writePage(keyPageId, bytes);
 
-        if (cached(keyPageId))
+        if (cached(ixFileHandle.filename, keyPageId))
             refreshCache(bytes, keyPageId);
 
         free(bytes);
@@ -278,6 +282,7 @@ namespace PeterDB {
         ixFileHandle.readPage(pageId, nodeBytes);
         cachedNode.reload(nodeBytes);
         cachedPage = pageId;
+        cachedFile = ixFileHandle.filename;
     }
 
     void IndexManager::refreshCache(char *bytes, int pageId) {
@@ -285,8 +290,8 @@ namespace PeterDB {
         cachedPage = pageId;
     }
 
-    bool IndexManager::cached(int pageId) const {
-        return cachedPage == pageId;
+    bool IndexManager::cached(const string& filename, int pageId) const {
+        return cachedPage == pageId && this->cachedFile == filename;
     }
 
     void IndexManager::parseKey(AttrType attrType, InsertionChild *child, char *key, RID &rid) {
