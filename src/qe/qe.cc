@@ -1,6 +1,7 @@
 #include "src/include/qe.h"
 #include <src/utils/compare_utils.h>
 #include <unordered_map>
+#include <limits>
 
 namespace PeterDB {
     Filter::Filter(Iterator *input, const Condition &condition) {
@@ -248,11 +249,11 @@ namespace PeterDB {
         reading = false;
 
         // Populate data
-        int index = 0;
+        int aggIndex = 0;
 
         for (std::pair<std::string, AggregateValue> value : dataRow) {
-            if (index < currentIndex) {
-                index++;
+            if (aggIndex < currentIndex) {
+                aggIndex++;
                 continue;
             }
             char nullMap[1];

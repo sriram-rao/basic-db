@@ -203,7 +203,7 @@ namespace PeterDB {
     RC INLJoin::getNextTuple(void *data) {
         // read tuple from left
         if (this->toReadLeft)
-            if (QE_EOF == getLeftTuple()) 
+            if (QE_EOF == getLeftTuple())
                 return QE_EOF;
 
         // initialise scan based on join attribute of left
