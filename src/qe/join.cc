@@ -71,6 +71,7 @@ namespace PeterDB {
             if (this->leftTableComplete)
                 return QE_EOF;
             toReadLeft = true;
+            mapIndexRead = 0;
             rightIn->setIterator();
             return getNextTuple(data);
         }
