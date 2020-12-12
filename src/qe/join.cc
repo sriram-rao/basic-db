@@ -45,7 +45,7 @@ namespace PeterDB {
     }
 
     RC BNLJoin::getNextTuple(void *data) {
-        if (!this->leftTableComplete)
+        if (!this->leftTableComplete && this->toReadLeft)
             this->leftIn->getNextTuple(nextLeftTuple);
         populateLeftTuplesMap();
 
