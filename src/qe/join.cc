@@ -86,8 +86,10 @@ namespace PeterDB {
             this->mapIndexRead = i;
             break;
         }
-        if (this->mapIndexRead == tuples.size() - 1)
+        if (this->mapIndexRead == tuples.size() - 1) {
             toReadRight = true;
+            mapIndexRead = 0;
+        }
 
         // copy to data and return
         int leftNullBytes = ceil((float) this->leftAttrs.size() / 8);
