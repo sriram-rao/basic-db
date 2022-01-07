@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sstream>
 #include <fstream>
+#include <dirent.h>
 
 #include "glog/logging.h"
 #include "gtest/gtest.h"
@@ -136,8 +137,9 @@ namespace PeterDBTesting {
     }
 
     void checkPrintRecord(const std::string &expected, const std::string &target, bool containsMode = false,
-                          const std::vector<std::string> &ignoreValues = std::vector<std::string>()) {
-        GTEST_LOG_(INFO) << "Target string: " << target;
+                          const std::vector<std::string> &ignoreValues = std::vector<std::string>(),
+                          bool verbose = true) {
+        if (verbose) GTEST_LOG_(INFO) << "Target string: " << target;
         if (std::strcmp(normalizeKVString(expected).c_str(), target.c_str()) == 0)
             return;
 
@@ -204,6 +206,38 @@ namespace PeterDBTesting {
 //        std::cout << usage.ru_maxrss << "KB" << std::endl;
 //    }
 
+    std::vector<std::string> split(std::string str, const std::string &token) {
+        std::vector<std::string> result;
+        while (!str.empty()) {
+            int index = str.find(token);
+            if (index != std::string::npos) {
+                result.push_back(str.substr(0, index));
+                str = str.substr(index + token.size());
+                if (str.empty())result.emplace_back(str);
+            } else {
+                result.push_back(str);
+                str = "";
+            }
+        }
+        return result;
+    }
+
+    std::vector<std::string> glob(const std::string &suffix) {
+        std::vector<std::string> files;
+        DIR *dpdf;
+        struct dirent *epdf;
+
+        dpdf = opendir("./");
+        if (dpdf != nullptr) {
+            while ((epdf = readdir(dpdf))) {
+                if (strstr(epdf->d_name, suffix.c_str())) {
+                    files.emplace_back(epdf->d_name);
+                }
+            }
+        }
+        closedir(dpdf);
+        return files;
+    }
 } // namespace PeterDBTesting
 
 

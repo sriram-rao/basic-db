@@ -34,12 +34,11 @@ namespace PeterDB {
     }
 
     RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-        if (fileHandle.isOpen()) return -1;
-        bool newFile = !FileHandle::exists(fileName);
+        if (fileHandle.isOpen() || !FileHandle::exists(fileName)) {
+            return -1;
+        }
         fstream file(fileName, ios::in | ios::out | ios::binary);
         fileHandle.setFile(std::move(file));
-        if (newFile)
-            return fileHandle.init();
         return fileHandle.open();
     }
 
@@ -75,11 +74,12 @@ namespace PeterDB {
 
     RC FileHandle::readPage(PageNum pageNum, void *data) {
         if (getNumberOfPages() < pageNum) return -1;
-        char* bytes = new char[PAGE_SIZE];
-        file.seekg((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE);
+        char bytes[PAGE_SIZE];
+        if (file.eof())
+            file.clear();
+        file.seekg((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE, ios::beg);
         file.read(bytes, PAGE_SIZE);
         std::memcpy(data, bytes, PAGE_SIZE);
-        delete[] bytes;
         readPageCounter++;
         return 0;
     }
@@ -88,6 +88,7 @@ namespace PeterDB {
         if (getNumberOfPages() < pageNum) return -1;
         file.seekp((HIDDEN_PAGE_COUNT + pageNum) * PAGE_SIZE, ios::beg);
         file.write(reinterpret_cast<char *>(const_cast<void *>(data)), PAGE_SIZE);
+        file.flush();
         writePageCounter++;
         return 0;
     }
@@ -108,6 +109,7 @@ namespace PeterDB {
     RC FileHandle::setPageSpace(PageNum num, short freeBytes) {
         this->pageSpaceMap[num] = freeBytes;
         persistCounters();
+        return 0;
     }
 
     RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
@@ -157,7 +159,10 @@ namespace PeterDB {
     }
 
     bool FileHandle::exists(const std::string &fileName) {
-        if(fopen(fileName.c_str(), "r")) return true;
+        if (FILE *file = fopen(fileName.c_str(), "r")) {
+            fclose(file);
+            return true;
+        }
         return false;
     }
 
@@ -166,9 +171,10 @@ namespace PeterDB {
         file.seekp(0);
         unsigned counters[4] = { readPageCounter, writePageCounter, appendPageCounter, static_cast<unsigned>(pageSpaceMap.size()) };
         file.write(reinterpret_cast<char *>(counters), sizeof(counters));
-        file.write(reinterpret_cast<char *>(pageSpaceMap.data()), sizeof(short) * pageSpaceMap.size());  //TODO: Handle when map becomes too big for one page
+        if (!pageSpaceMap.empty())
+            file.write(reinterpret_cast<char *>(pageSpaceMap.data()), sizeof(short) * pageSpaceMap.size());  //TODO: Handle when map becomes too big for one page
         int spaceToReserve = PAGE_SIZE * HIDDEN_PAGE_COUNT - sizeof(counters) - sizeof(short) * pageSpaceMap.size();
-        char* junk = new char[spaceToReserve];
+        char junk[spaceToReserve];
         file.write(junk, spaceToReserve);
         file.flush();
         return 0;

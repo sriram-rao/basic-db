@@ -2,42 +2,92 @@
 #include <cstring>
 
 namespace PeterDB {
-    Record::Record() = default;
-
-    Record::Record(RID id, short countOfAttributes, vector<short> offsets, unsigned char* values) {
-        this->rid = id;
-        this->attributeCount = countOfAttributes;
-        this->offsets = offsets;
-        this->values = values;
+    Record::Record() {
+        this->attributeCount = 0;
+        this->rid = { 0, 0 };
+        this->offsets = vector<short>(0);
+        this->values = nullptr;
     }
 
-    void Record::readAttribute(int index, void* data) {
+    Record::Record(RID newId, short countOfAttributes, vector<short> newOffsets, char* newValues) {
+        this->rid = newId;
+        this->attributeCount = countOfAttributes;
+        this->offsets = newOffsets;
+
+        int dataSize = 0;
+        int offsetCount = countOfAttributes == -1 ? 2 : countOfAttributes;
+        int metadataSize = sizeof(short) + sizeof(short) * offsetCount;
+        for (int i = offsetCount - 1; i >= 0; i--) {
+            if (newOffsets[i] == -1) continue;
+            dataSize = newOffsets[i] - metadataSize;
+            break;
+        }
+        this->values = nullptr;
+        if (dataSize > 0) {
+            this->values = (char *) malloc(dataSize);
+            memcpy(this->values, newValues, dataSize);
+        }
+    }
+
+    Record::Record(char* bytes) {
+        this->populateMetadata(bytes);
+        this->populateData(bytes);
+    }
+
+    Record & Record::operator=(const Record &other) {
+        this->rid = other.rid;
+        this->attributeCount = other.attributeCount;
+        this->offsets = other.offsets;
+
+        int dataSize = 0;
+        int offsetCount = other.attributeCount == -1 ? 2 : other.attributeCount;
+        int metadataSize = sizeof(short) + sizeof(short) * offsetCount;
+        for (int i = offsetCount - 1; i >= 0; i--) {
+            if (other.offsets[i] == -1) continue;
+            dataSize = other.offsets[i] - metadataSize;
+            break;
+        }
+        free(this->values);
+        this->values = (char *) malloc(dataSize);
+        memcpy(this->values, other.values, dataSize);
+        return *this;
+    }
+
+    int Record::getAttributeLength(int index) {
         int endOffset = offsets[index];
+        if (endOffset == -1)
+            return -1;
         int startOffset = 0;
         for (int i = index - 1; i >= 0; i--) {
             if (offsets[i] == -1) continue;
             startOffset = offsets[i];
             break;
         }
-        memcpy(data, values + startOffset, endOffset - startOffset);
+        return endOffset - startOffset;
     }
 
-    Record Record::fromBytes(unsigned char* bytes) {
-        Record r = Record();
-        r.populateMetadata(bytes);
-        r.populateData(bytes);
-        return r;
+    bool Record::readAttribute(int index, void* data) {
+        int endOffset = offsets[index];
+        int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
+        int metadataSize = sizeof(short) + sizeof(short) * offsetCount;
+        int startOffset = metadataSize;
+        for (int i = index - 1; i >= 0; i--) {
+            if (offsets[i] == -1) continue;
+            startOffset = offsets[i];
+            break;
+        }
+        memcpy(data, values + startOffset - metadataSize, endOffset - startOffset);
+        return true;
     }
 
-    void Record::populateMetadata(unsigned char* bytes){
+    void Record::populateMetadata(char* bytes){
         memcpy(&this->attributeCount, bytes, sizeof(short));
         int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
-        offsets = vector<short>(offsetCount);
-        offsets.insert(offsets.begin(), 0);
+        offsets = vector<short>(offsetCount, 0);
         memcpy(offsets.data(), bytes + sizeof(short), sizeof(short) * offsetCount);
     }
 
-    void Record::populateData(unsigned char* bytes){
+    void Record::populateData(char* bytes){
         // Assumes metadata has been populated
         unsigned long dataSize = 0;
         int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
@@ -47,19 +97,23 @@ namespace PeterDB {
             dataSize = offsets[i] - metadataSize;
             break;
         }
-        unsigned char* data = (unsigned char*) malloc(dataSize);
-        memcpy(data, bytes + metadataSize, dataSize);
-        this->values = data;
+        this->values = (char*) malloc(dataSize);
+        memcpy(this->values, bytes + metadataSize, dataSize);
     }
 
-    unsigned char* Record::toBytes(u_short recordLength) {
-        int attributeCount = this->attributeCount == -1 ? 2 : this->attributeCount;
-        u_short dataSize = recordLength - sizeof(short) - sizeof(short) * attributeCount;
-        unsigned char* byteArray = (unsigned char*) malloc(recordLength);
-        memcpy(byteArray, &this->attributeCount, sizeof(short));
-        memcpy(byteArray + sizeof(short), offsets.data(), sizeof(short) * attributeCount);
-        memcpy(byteArray + sizeof(short) + sizeof(short) * attributeCount, values, dataSize);
-        return byteArray;
+    void Record::toBytes(u_short recordLength, char* bytes) {
+        int fieldCount = this->attributeCount == -1 ? 2 : this->attributeCount;
+        unsigned long dataSize = 0;
+        int offsetCount = this->attributeCount == -1 ? 2 : this->attributeCount;
+        int metadataSize = sizeof(short) + sizeof(short) * offsetCount;
+        for (int i = offsetCount - 1; i >= 0; i--) {
+            if (offsets[i] == -1) continue;
+            dataSize = offsets[i] - metadataSize;
+            break;
+        }
+        memcpy(bytes, &this->attributeCount, sizeof(short));
+        memcpy(bytes + sizeof(short), offsets.data(), sizeof(short) * fieldCount);
+        memcpy(bytes + sizeof(short) + sizeof(short) * fieldCount, values, dataSize);
     }
 
     bool Record::absent() const {
@@ -76,5 +130,7 @@ namespace PeterDB {
         return { pageNum, slotNum };
     }
 
-    Record::~Record() = default;
+    Record::~Record() {
+        free(values);
+    }
 }

@@ -1,15 +1,15 @@
+#include <utility>
 #include "src/include/rbfm.h"
 
 namespace PeterDB {
-    SlotDirectory::SlotDirectory() {}
 
-    SlotDirectory::SlotDirectory(short freeSpace, short recordCount, vector<Slot> slots) {
+    SlotDirectory::SlotDirectory() = default;
+
+    SlotDirectory::SlotDirectory(short freeSpace, short recordCount) {
         this->freeSpace = freeSpace;
         this->recordCount = recordCount;
-        this->slots = slots;
+        this->slots = vector<Slot>(recordCount);
     }
-
-    SlotDirectory::~SlotDirectory() = default;
 
     RC SlotDirectory::addSlot(unsigned short slotNum, short offset, short recordLength) {
         this->slots.push_back({offset, recordLength});
