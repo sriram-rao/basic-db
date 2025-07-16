@@ -4,18 +4,13 @@
 
 
 ### Components:
- - PagedFileManager
- - RecordBasedFileManager
- - RelationManager
- - IndexManage
- - QueryEngine
+ - Paged File Manager
+ - Record Based File Manager
+ - Relation Manager
+ - Index Manager
+ - Query Engine
 
-### Use CLion for development
- - Simply open (or clone) the repo as a project in CLion
- - Reload CMake Project, https://www.jetbrains.com/help/clion/reloading-project.html
- - CLion takes care of the building. Select executables (tests) from the top-right configurations.
- 
-### If you are not using CLion and want to use the command line `cmake` tool:
+### Build
  - From the repo root directory, create and go into a build directory
  
  `mkdir -p cmake-build-debug && cd cmake-build-debug`
@@ -42,3 +37,5 @@
  
  or simply remove the build directory:
  `rm -rf [root]/cmake-build-debug`
+ 
+# Or, use CLion
