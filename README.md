@@ -1,21 +1,16 @@
-# PeterDB
+# BasicDB
 
-#### This is the project codebase for Principles of Data Management, PeterDB
+#### This is the project codebase for BasicDB
 
 
 ### Components:
- - PagedFileManager
- - RecordBasedFileManager
- - RelationManager
- - IndexManage
- - QueryEngine
+ - Paged File Manager
+ - Record Based File Manager
+ - Relation Manager
+ - Index Manager
+ - Query Engine
 
-### Use CLion for development
- - Simply open (or clone) the repo as a project in CLion
- - Reload CMake Project, https://www.jetbrains.com/help/clion/reloading-project.html
- - CLion takes care of the building. Select executables (tests) from the top-right configurations.
- 
-### If you are not using CLion and want to use the command line `cmake` tool:
+### Build
  - From the repo root directory, create and go into a build directory
  
  `mkdir -p cmake-build-debug && cd cmake-build-debug`
@@ -43,16 +38,4 @@
  or simply remove the build directory:
  `rm -rf [root]/cmake-build-debug`
  
-
-### Project Instruction
- 
-- Implement the QueryEngine(QE) component. Write your implementation in the corresponding .cc files under `src` directory.
-
-- DO NOT change the pre-defined APIs (classes, functions, methods) in the given .h files.
-If you think some changes are really necessary, please contact us first.
-
-- You can add your own files (.h, .cc), or even directories under `src`, if needed. You might need to modify or add `CMakelists.txt` files under `src` directory or its child directories.
-
-- DO NOT modify anything under `test` directory: all the tests will be overwritten by the instructor's copy during grading. 
-    - public tests are released with the source code.
-    - private tests will be appended after the deadline (or grace period).
+### Or use CLion

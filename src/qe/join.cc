@@ -45,7 +45,7 @@ namespace PeterDB {
     }
 
     RC BNLJoin::getNextTuple(void *data) {
-        if (!this->leftTableComplete)
+        if (!this->leftTableComplete && this->toReadLeft)
             this->leftIn->getNextTuple(nextLeftTuple);
         populateLeftTuplesMap();
 
@@ -71,6 +71,7 @@ namespace PeterDB {
             if (this->leftTableComplete)
                 return QE_EOF;
             toReadLeft = true;
+            mapIndexRead = 0;
             rightIn->setIterator();
             return getNextTuple(data);
         }
@@ -86,8 +87,10 @@ namespace PeterDB {
             this->mapIndexRead = i;
             break;
         }
-        if (this->mapIndexRead == tuples.size() - 1)
+        if (this->mapIndexRead == tuples.size() - 1) {
             toReadRight = true;
+            mapIndexRead = 0;
+        }
 
         // copy to data and return
         int leftNullBytes = ceil((float) this->leftAttrs.size() / 8);
